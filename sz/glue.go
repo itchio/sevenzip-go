@@ -143,6 +143,30 @@ func (a *Archive) GetItemCount() int64 {
 	return int64(C.libc7zip_archive_get_item_count(a.arch))
 }
 
+type Item struct {
+	item *C.item
+}
+
+func (a *Archive) GetItem(index int64) *Item {
+	item := C.libc7zip_archive_get_item(a.arch, C.int64_t(index))
+	if item == nil {
+		return nil
+	}
+
+	return &Item{
+		item: item,
+	}
+}
+
+func (a *Archive) Extract(i *Item, os *OutStream) error {
+	ret := C.libc7zip_archive_extract(a.arch, i.item, os.strm)
+	if ret != 0 {
+		return fmt.Errorf(`return code %d while extracting`, ret)
+	}
+
+	return nil
+}
+
 //export inSeekGo
 func inSeekGo(id int64, offset int64, whence int32, newPosition unsafe.Pointer) int {
 	is, ok := inStreams[id]

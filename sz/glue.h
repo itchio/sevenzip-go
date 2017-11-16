@@ -60,3 +60,18 @@ archive *libc7zip_archive_open(lib *l, in_stream *s);
 typedef int64_t (*archive_get_item_count_t)(archive *a);
 DECLARE(archive_get_item_count)
 int64_t libc7zip_archive_get_item_count(archive *a);
+
+// archive_get_item
+typedef item *(*archive_get_item_t)(archive *a, int64_t index);
+DECLARE(archive_get_item)
+item * libc7zip_archive_get_item(archive *a, int64_t index);
+
+// archive_item_free
+typedef void (*archive_item_free_t)(item *i);
+DECLARE(archive_item_free)
+void libc7zip_archive_item_free(item *i);
+
+// archive_extract
+typedef int (*archive_extract_t)(archive *a, item *i, out_stream *os);
+DECLARE(archive_extract)
+int libc7zip_archive_extract(archive *a, item *i, out_stream *os);
