@@ -21,8 +21,12 @@ DECLARE(in_stream_get_def)
 typedef archive *(*archive_open_t)(lib *l, in_stream *s);
 DECLARE(archive_open)
 
+typedef int64_t (*archive_get_item_count_t)(archive *a);
+DECLARE(archive_get_item_count)
+
 int libc7zip_initialize();
 lib *libc7zip_lib_new();
 in_stream *libc7zip_in_stream_new();
 in_stream_def *libc7zip_in_stream_get_def(in_stream *s);
 archive *libc7zip_archive_open(lib *l, in_stream *s);
+int64_t libc7zip_archive_get_item_count(archive *a);

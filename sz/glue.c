@@ -33,9 +33,8 @@ int libc7zip_initialize() {
   LOADSYM(in_stream_new)
   LOADSYM(in_stream_get_def)
   LOADSYM(archive_open)
+  LOADSYM(archive_get_item_count)
 
-  fprintf(stderr, "Loaded libc7zip.dll!\n");
-  fflush(stderr);
   return 0;
 }
 
@@ -55,19 +54,16 @@ archive *libc7zip_archive_open(lib *l, in_stream *s) {
   return archive_open_(l, s);
 }
 
+int64_t libc7zip_archive_get_item_count(archive *a) {
+  return archive_get_item_count_(a);
+}
+
 // Gateway functions
 
 int seekGo_cgo(int64_t offset, int32_t whence, int64_t *new_position) {
-  fprintf(stderr, "In gateway seekGo_cgo, should seek by %lld \n", offset);
-  fflush(stderr);
-  int ret = seekGo(offset, whence, new_position);
-  fprintf(stderr, "seekGo returned, new_position is %lld \n", *new_position);
-  fflush(stderr);
-  return ret;
+  return seekGo(offset, whence, new_position);
 }
 
 int readGo_cgo(void *data, int64_t size, int64_t *processed_size) {
-  fprintf(stderr, "In gateway readGo_cgo, should read %lld \n", size);
-  fflush(stderr);
   return readGo(data, size, processed_size);
 }
