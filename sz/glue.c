@@ -30,8 +30,12 @@ int libc7zip_initialize() {
   }
 
   LOADSYM(lib_new)
+  LOADSYM(lib_free)
+
   LOADSYM(in_stream_new)
   LOADSYM(in_stream_get_def)
+  LOADSYM(in_stream_free)
+
   LOADSYM(archive_open)
   LOADSYM(archive_get_item_count)
 
@@ -42,16 +46,24 @@ lib *libc7zip_lib_new() {
   return lib_new_();
 }
 
+void libc7zip_lib_free(lib *l) {
+  return lib_free_(l);
+}
+
 in_stream *libc7zip_in_stream_new() {
   return in_stream_new_();
 }
 
-in_stream_def *libc7zip_in_stream_get_def(in_stream *s) {
-  return in_stream_get_def_(s);
+void libc7zip_in_stream_free(in_stream *is) {
+  return in_stream_free_(is);
 }
 
-archive *libc7zip_archive_open(lib *l, in_stream *s) {
-  return archive_open_(l, s);
+in_stream_def *libc7zip_in_stream_get_def(in_stream *is) {
+  return in_stream_get_def_(is);
+}
+
+archive *libc7zip_archive_open(lib *l, in_stream *is) {
+  return archive_open_(l, is);
 }
 
 int64_t libc7zip_archive_get_item_count(archive *a) {
