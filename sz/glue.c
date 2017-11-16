@@ -34,6 +34,7 @@ int libc7zip_initialize() {
 
   LOADSYM(in_stream_new)
   LOADSYM(in_stream_get_def)
+  LOADSYM(in_stream_commit_def)
   LOADSYM(in_stream_free)
 
   LOADSYM(out_stream_new)
@@ -45,6 +46,8 @@ int libc7zip_initialize() {
   LOADSYM(archive_get_item)
   LOADSYM(archive_item_free)
   LOADSYM(archive_extract)
+
+  // TODO: archive_free ?
 
   return 0;
 }
@@ -65,6 +68,10 @@ in_stream *libc7zip_in_stream_new() {
 
 in_stream_def *libc7zip_in_stream_get_def(in_stream *is) {
   return in_stream_get_def_(is);
+}
+
+void libc7zip_in_stream_commit_def(in_stream *is) {
+  in_stream_commit_def_(is);
 }
 
 void libc7zip_in_stream_free(in_stream *is) {

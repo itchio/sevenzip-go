@@ -27,9 +27,14 @@ DECLARE(in_stream_new)
 in_stream *libc7zip_in_stream_new();
 
 // in_stream_get_def
-typedef in_stream_def *(*in_stream_get_def_t)();
+typedef in_stream_def *(*in_stream_get_def_t)(in_stream *is);
 DECLARE(in_stream_get_def)
-in_stream_def *libc7zip_in_stream_get_def(in_stream *s);
+in_stream_def *libc7zip_in_stream_get_def(in_stream *is);
+
+// in_stream_commit_def
+typedef void (*in_stream_commit_def_t)(in_stream *is);
+DECLARE(in_stream_commit_def)
+void libc7zip_in_stream_commit_def(in_stream *is);
 
 // in_stream_free
 typedef void (*in_stream_free_t)(in_stream *is);

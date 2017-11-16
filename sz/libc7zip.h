@@ -35,6 +35,7 @@ struct in_stream;
 typedef struct in_stream in_stream;
 in_stream *in_stream_new();
 in_stream_def *in_stream_get_def(in_stream *is);
+void in_stream_commit_def(in_stream *is);
 void in_stream_free(in_stream *is);
 
 struct out_stream;

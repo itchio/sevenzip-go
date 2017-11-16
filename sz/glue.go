@@ -19,6 +19,8 @@ import (
 	"unsafe"
 )
 
+// const kTestMaxOpSize int64 = 512 * 1024
+
 type ReaderAtCloser interface {
 	io.ReaderAt
 	io.Closer
@@ -73,6 +75,10 @@ func NewLib() (*Lib, error) {
 	return l, nil
 }
 
+func (l *Lib) Free() {
+	C.libc7zip_lib_free(l.lib)
+}
+
 func NewInStream(reader ReaderAtCloser, ext string, size int64) (*InStream, error) {
 	strm := C.libc7zip_in_stream_new()
 	if strm == nil {
@@ -96,7 +102,13 @@ func NewInStream(reader ReaderAtCloser, ext string, size int64) (*InStream, erro
 	def.read_cb = (C.read_cb_t)(unsafe.Pointer(C.inReadGo_cgo))
 	def.seek_cb = (C.seek_cb_t)(unsafe.Pointer(C.inSeekGo_cgo))
 
+	C.libc7zip_in_stream_commit_def(strm)
+
 	return is, nil
+}
+
+func (is *InStream) Free() {
+	C.libc7zip_in_stream_free(is.strm)
 }
 
 func NewOutStream(writer WriterAtCloser) (*OutStream, error) {
@@ -121,6 +133,10 @@ func NewOutStream(writer WriterAtCloser) (*OutStream, error) {
 	def.seek_cb = (C.seek_cb_t)(unsafe.Pointer(C.outSeekGo_cgo))
 
 	return os, nil
+}
+
+func (os *OutStream) Free() {
+	C.libc7zip_out_stream_free(os.strm)
 }
 
 type Archive struct {
@@ -158,10 +174,14 @@ func (a *Archive) GetItem(index int64) *Item {
 	}
 }
 
+func (i *Item) Free() {
+	C.libc7zip_archive_item_free(i.item)
+}
+
 func (a *Archive) Extract(i *Item, os *OutStream) error {
-	ret := C.libc7zip_archive_extract(a.arch, i.item, os.strm)
-	if ret != 0 {
-		return fmt.Errorf(`return code %d while extracting`, ret)
+	success := C.libc7zip_archive_extract(a.arch, i.item, os.strm)
+	if success == 0 {
+		return fmt.Errorf(`extraction was not successful`)
 	}
 
 	return nil
@@ -197,6 +217,11 @@ func inReadGo(id int64, data unsafe.Pointer, size int64, processedSize unsafe.Po
 		log.Printf("no such InStream: %d", id)
 		return 1
 	}
+
+	// FIXME: just testing things
+	// if size > kTestMaxOpSize {
+	// 	size = kTestMaxOpSize
+	// }
 
 	log.Printf("[%d] inRead %d bytes at %d", id, size, is.offset)
 
@@ -250,6 +275,11 @@ func outWriteGo(id int64, data unsafe.Pointer, size int64, processedSize unsafe.
 		log.Printf("no such OutStream: %d", id)
 		return 1
 	}
+
+	// FIXME: just testing things
+	// if size > kTestMaxOpSize {
+	// 	size = kTestMaxOpSize
+	// }
 
 	log.Printf("[%d] outWrite %d bytes at %d", id, size, os.offset)
 
