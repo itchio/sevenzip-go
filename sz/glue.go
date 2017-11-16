@@ -198,6 +198,8 @@ func inReadGo(id int64, data unsafe.Pointer, size int64, processedSize unsafe.Po
 		return 1
 	}
 
+	log.Printf("[%d] inRead %d bytes at %d", id, size, is.offset)
+
 	h := reflect.SliceHeader{
 		Data: uintptr(data),
 		Cap:  int(size),
@@ -248,6 +250,8 @@ func outWriteGo(id int64, data unsafe.Pointer, size int64, processedSize unsafe.
 		log.Printf("no such OutStream: %d", id)
 		return 1
 	}
+
+	log.Printf("[%d] outWrite %d bytes at %d", id, size, os.offset)
 
 	h := reflect.SliceHeader{
 		Data: uintptr(data),

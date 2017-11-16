@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"log"
 	"os"
 
@@ -27,6 +28,25 @@ func main() {
 	log.Printf("Opened archive...")
 
 	log.Printf("Archive has %d items", a.GetItemCount())
+
+	log.Printf("trying to extract last file...")
+
+	of, err := os.Create("out.dat")
+	must(err)
+
+	os, err := sz.NewOutStream(of)
+	must(err)
+	log.Printf("Created output stream...")
+
+	item := a.GetItem(a.GetItemCount() - 1)
+	if item == nil {
+		must(errors.New("null item :("))
+	}
+
+	log.Printf("Extracting...")
+	err = a.Extract(item, os)
+	must(err)
+	log.Printf("Done!")
 }
 
 func must(err error) {
