@@ -4,83 +4,133 @@ package sz
 #include "glue.h"
 
 // forward declaration for gateway functions
-int readGo_cgo(void *data, int64_t size, int64_t *processed_size);
-int seekGo_cgo(int64_t offset, int32_t whence, int64_t *new_position);
+int readGo_cgo(int64_t id, void *data, int64_t size, int64_t *processed_size);
+int seekGo_cgo(int64_t id, int64_t offset, int32_t whence, int64_t *new_position);
 */
 import "C"
 import (
 	"fmt"
+	"io"
 	"log"
-	"os"
 	"reflect"
 	"unsafe"
-
-	"github.com/go-errors/errors"
 )
 
-var f *os.File
+type ReaderAtCloser interface {
+	io.ReaderAt
+	io.Closer
+}
 
-func Initialize() error {
+// TODO: handle Close() correctly
+type InStream struct {
+	reader ReaderAtCloser
+	size   int64
+	id     int64
+	offset int64
+	strm   *C.in_stream
+}
+
+var inStreams = make(map[int64]*InStream)
+var inStreamSeed int64 = 666
+
+type Lib struct {
+	lib *C.lib
+}
+
+func NewLib() (*Lib, error) {
 	ret := C.libc7zip_initialize()
 	if ret != 0 {
-		return fmt.Errorf("could not initialize libc7zip")
+		return nil, fmt.Errorf("could not initialize libc7zip")
 	}
 
 	lib := C.libc7zip_lib_new()
 	if lib == nil {
-		return fmt.Errorf("could not create new lib")
+		return nil, fmt.Errorf("could not create new lib")
 	}
 
+	l := &Lib{
+		lib: lib,
+	}
+	return l, nil
+}
+
+func NewInStream(reader ReaderAtCloser, ext string, size int64) (*InStream, error) {
 	strm := C.libc7zip_in_stream_new()
 	if strm == nil {
-		return fmt.Errorf("could not create new in stream")
+		return nil, fmt.Errorf("could not create new in_stream")
 	}
+
+	is := &InStream{
+		reader: reader,
+		size:   size,
+		id:     inStreamSeed,
+		offset: 0,
+		strm:   strm,
+	}
+	inStreams[is.id] = is
+	inStreamSeed += 1
 
 	def := C.libc7zip_in_stream_get_def(strm)
-
-	var err error
-	f, err = os.Open("main.7z")
-	if err != nil {
-		return errors.Wrap(err, 0)
-	}
-
-	stats, err := f.Stat()
-	if err != nil {
-		return errors.Wrap(err, 0)
-	}
-
-	def.size = C.int64_t(stats.Size())
-	def.ext = C.CString(".7z")
-
+	def.size = C.int64_t(is.size)
+	def.ext = C.CString(ext)
+	def.id = C.int64_t(is.id)
 	def.read_cb = (C.read_cb_t)(unsafe.Pointer(C.readGo_cgo))
 	def.seek_cb = (C.seek_cb_t)(unsafe.Pointer(C.seekGo_cgo))
 
-	arch := C.libc7zip_archive_open(lib, strm)
+	return is, nil
+}
+
+type Archive struct {
+	arch *C.archive
+}
+
+func (lib *Lib) OpenArchive(is *InStream) (*Archive, error) {
+	arch := C.libc7zip_archive_open(lib.lib, is.strm)
 	if arch == nil {
-		return fmt.Errorf("could not open archive")
+		return nil, fmt.Errorf("could not open archive")
 	}
 
-	count := C.libc7zip_archive_get_item_count(arch)
-	log.Printf("item count = %d", count)
+	a := &Archive{
+		arch: arch,
+	}
+	return a, nil
+}
 
-	return nil
+func (a *Archive) GetItemCount() int64 {
+	return int64(C.libc7zip_archive_get_item_count(a.arch))
 }
 
 //export seekGo
-func seekGo(offset int64, whence int32, newPosition unsafe.Pointer) int {
-	ret, err := f.Seek(offset, int(whence))
-	if err != nil {
+func seekGo(id int64, offset int64, whence int32, newPosition unsafe.Pointer) int {
+	is, ok := inStreams[id]
+	if !ok {
+		log.Printf("no such stream: %d", id)
 		return 1
 	}
 
+	switch whence {
+	case io.SeekStart:
+		is.offset = offset
+	case io.SeekCurrent:
+		is.offset += offset
+	case io.SeekEnd:
+		is.offset = is.size + offset
+	}
+
 	newPosPtr := (*int64)(newPosition)
-	*newPosPtr = ret
+	*newPosPtr = is.offset
 
 	return 0
 }
 
 //export readGo
-func readGo(data unsafe.Pointer, size int64, processedSize unsafe.Pointer) int {
+func readGo(id int64, data unsafe.Pointer, size int64, processedSize unsafe.Pointer) int {
+	is, ok := inStreams[id]
+	if !ok {
+		log.Printf("no such stream: %d", id)
+		return 1
+	}
+
 	h := reflect.SliceHeader{
 		Data: uintptr(data),
 		Cap:  int(size),
@@ -88,11 +138,12 @@ func readGo(data unsafe.Pointer, size int64, processedSize unsafe.Pointer) int {
 	}
 	buf := *(*[]byte)(unsafe.Pointer(&h))
 
-	readBytes, err := f.Read(buf)
+	readBytes, err := is.reader.ReadAt(buf, is.offset)
 	if err != nil {
-		log.Printf("could not read: %s", err.Error())
 		return 1
 	}
+
+	is.offset += int64(readBytes)
 
 	processedSizePtr := (*int64)(processedSize)
 	*processedSizePtr = int64(readBytes)

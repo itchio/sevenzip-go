@@ -60,10 +60,10 @@ int64_t libc7zip_archive_get_item_count(archive *a) {
 
 // Gateway functions
 
-int seekGo_cgo(int64_t offset, int32_t whence, int64_t *new_position) {
-  return seekGo(offset, whence, new_position);
+int seekGo_cgo(int64_t id, int64_t offset, int32_t whence, int64_t *new_position) {
+  return seekGo(id, offset, whence, new_position);
 }
 
-int readGo_cgo(void *data, int64_t size, int64_t *processed_size) {
-  return readGo(data, size, processed_size);
+int readGo_cgo(int64_t id, void *data, int64_t size, int64_t *processed_size) {
+  return readGo(id, data, size, processed_size);
 }

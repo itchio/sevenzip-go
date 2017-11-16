@@ -8,10 +8,11 @@
 extern "C" {
 #endif // __cplusplus
 
-typedef int (*read_cb_t)(void *data, int64_t size, int64_t *processed_size);
-typedef int (*seek_cb_t)(int64_t offset, int32_t whence, int64_t *new_position);
+typedef int (*read_cb_t)(int64_t id, void *data, int64_t size, int64_t *processed_size);
+typedef int (*seek_cb_t)(int64_t id, int64_t offset, int32_t whence, int64_t *new_position);
 
 typedef struct in_stream_def {
+  int64_t id;
 	seek_cb_t seek_cb;
 	read_cb_t read_cb;
   char *ext;
