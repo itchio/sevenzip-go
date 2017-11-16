@@ -195,6 +195,8 @@ func inSeekGo(id int64, offset int64, whence int32, newPosition unsafe.Pointer) 
 		return 1
 	}
 
+	log.Printf("[%d] inSeek %d whence %d, currently %d", id, offset, whence, is.offset)
+
 	switch whence {
 	case io.SeekStart:
 		is.offset = offset
@@ -225,6 +227,11 @@ func inReadGo(id int64, data unsafe.Pointer, size int64, processedSize unsafe.Po
 
 	log.Printf("[%d] inRead %d bytes at %d", id, size, is.offset)
 
+	if is.offset+size > is.size {
+		log.Printf("[%d] inRead %d bytes at %d (capped)", id, size, is.offset)
+		size = is.size - is.offset
+	}
+
 	h := reflect.SliceHeader{
 		Data: uintptr(data),
 		Cap:  int(size),
@@ -234,6 +241,7 @@ func inReadGo(id int64, data unsafe.Pointer, size int64, processedSize unsafe.Po
 
 	readBytes, err := is.reader.ReadAt(buf, is.offset)
 	if err != nil {
+		log.Printf("readAt error: %s", err.Error())
 		return 1
 	}
 
@@ -292,6 +300,7 @@ func outWriteGo(id int64, data unsafe.Pointer, size int64, processedSize unsafe.
 
 	writtenBytes, err := os.writer.WriteAt(buf, os.offset)
 	if err != nil {
+		log.Printf("writeAt error: %s", err.Error())
 		return 1
 	}
 
