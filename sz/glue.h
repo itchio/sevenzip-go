@@ -36,6 +36,21 @@ typedef void (*in_stream_free_t)(in_stream *is);
 DECLARE(in_stream_free)
 void libc7zip_in_stream_free(in_stream *is);
 
+// out_stream_new
+typedef out_stream *(*out_stream_new_t)();
+DECLARE(out_stream_new)
+out_stream *libc7zip_out_stream_new();
+
+// out_stream_get_def
+typedef out_stream_def *(*out_stream_get_def_t)();
+DECLARE(out_stream_get_def)
+out_stream_def *libc7zip_out_stream_get_def(out_stream *s);
+
+// out_stream_free
+typedef void (*out_stream_free_t)(out_stream *os);
+DECLARE(out_stream_free)
+void libc7zip_out_stream_free(out_stream *os);
+
 // archive_open
 typedef archive *(*archive_open_t)(lib *l, in_stream *s);
 DECLARE(archive_open)

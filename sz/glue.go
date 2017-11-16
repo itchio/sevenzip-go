@@ -4,8 +4,11 @@ package sz
 #include "glue.h"
 
 // forward declaration for gateway functions
-int readGo_cgo(int64_t id, void *data, int64_t size, int64_t *processed_size);
-int seekGo_cgo(int64_t id, int64_t offset, int32_t whence, int64_t *new_position);
+int inReadGo_cgo(int64_t id, void *data, int64_t size, int64_t *processed_size);
+int inSeekGo_cgo(int64_t id, int64_t offset, int32_t whence, int64_t *new_position);
+
+int outWriteGo_cgo(int64_t id, const void *data, int64_t size, int64_t *processed_size);
+int outSeekGo_cgo(int64_t id, int64_t offset, int32_t whence, int64_t *new_position);
 */
 import "C"
 import (
@@ -33,6 +36,22 @@ type InStream struct {
 var inStreams = make(map[int64]*InStream)
 var inStreamSeed int64 = 666
 
+type WriterAtCloser interface {
+	io.WriterAt
+	io.Closer
+}
+
+type OutStream struct {
+	writer WriterAtCloser
+	size   int64
+	id     int64
+	offset int64
+	strm   *C.out_stream
+}
+
+var outStreams = make(map[int64]*OutStream)
+var outStreamSeed int64 = 777
+
 type Lib struct {
 	lib *C.lib
 }
@@ -57,7 +76,7 @@ func NewLib() (*Lib, error) {
 func NewInStream(reader ReaderAtCloser, ext string, size int64) (*InStream, error) {
 	strm := C.libc7zip_in_stream_new()
 	if strm == nil {
-		return nil, fmt.Errorf("could not create new in_stream")
+		return nil, fmt.Errorf("could not create new InStream")
 	}
 
 	is := &InStream{
@@ -74,10 +93,34 @@ func NewInStream(reader ReaderAtCloser, ext string, size int64) (*InStream, erro
 	def.size = C.int64_t(is.size)
 	def.ext = C.CString(ext)
 	def.id = C.int64_t(is.id)
-	def.read_cb = (C.read_cb_t)(unsafe.Pointer(C.readGo_cgo))
-	def.seek_cb = (C.seek_cb_t)(unsafe.Pointer(C.seekGo_cgo))
+	def.read_cb = (C.read_cb_t)(unsafe.Pointer(C.inReadGo_cgo))
+	def.seek_cb = (C.seek_cb_t)(unsafe.Pointer(C.inSeekGo_cgo))
 
 	return is, nil
+}
+
+func NewOutStream(writer WriterAtCloser) (*OutStream, error) {
+	strm := C.libc7zip_out_stream_new()
+	if strm == nil {
+		return nil, fmt.Errorf("could not create new OutStream")
+	}
+
+	os := &OutStream{
+		writer: writer,
+		id:     outStreamSeed,
+		offset: 0,
+		size:   0, // TODO: what about this?
+		strm:   strm,
+	}
+	outStreams[os.id] = os
+	outStreamSeed += 1
+
+	def := C.libc7zip_out_stream_get_def(strm)
+	def.id = C.int64_t(os.id)
+	def.write_cb = (C.write_cb_t)(unsafe.Pointer(C.outWriteGo_cgo))
+	def.seek_cb = (C.seek_cb_t)(unsafe.Pointer(C.outSeekGo_cgo))
+
+	return os, nil
 }
 
 type Archive struct {
@@ -100,11 +143,11 @@ func (a *Archive) GetItemCount() int64 {
 	return int64(C.libc7zip_archive_get_item_count(a.arch))
 }
 
-//export seekGo
-func seekGo(id int64, offset int64, whence int32, newPosition unsafe.Pointer) int {
+//export inSeekGo
+func inSeekGo(id int64, offset int64, whence int32, newPosition unsafe.Pointer) int {
 	is, ok := inStreams[id]
 	if !ok {
-		log.Printf("no such stream: %d", id)
+		log.Printf("no such InStream: %d", id)
 		return 1
 	}
 
@@ -123,11 +166,11 @@ func seekGo(id int64, offset int64, whence int32, newPosition unsafe.Pointer) in
 	return 0
 }
 
-//export readGo
-func readGo(id int64, data unsafe.Pointer, size int64, processedSize unsafe.Pointer) int {
+//export inReadGo
+func inReadGo(id int64, data unsafe.Pointer, size int64, processedSize unsafe.Pointer) int {
 	is, ok := inStreams[id]
 	if !ok {
-		log.Printf("no such stream: %d", id)
+		log.Printf("no such InStream: %d", id)
 		return 1
 	}
 
@@ -147,6 +190,57 @@ func readGo(id int64, data unsafe.Pointer, size int64, processedSize unsafe.Poin
 
 	processedSizePtr := (*int64)(processedSize)
 	*processedSizePtr = int64(readBytes)
+
+	return 0
+}
+
+//export outSeekGo
+func outSeekGo(id int64, offset int64, whence int32, newPosition unsafe.Pointer) int {
+	os, ok := outStreams[id]
+	if !ok {
+		log.Printf("no such OutStream: %d", id)
+		return 1
+	}
+
+	switch whence {
+	case io.SeekStart:
+		os.offset = offset
+	case io.SeekCurrent:
+		os.offset += offset
+	case io.SeekEnd:
+		os.offset = os.size + offset
+	}
+
+	newPosPtr := (*int64)(newPosition)
+	*newPosPtr = os.offset
+
+	return 0
+}
+
+//export outWriteGo
+func outWriteGo(id int64, data unsafe.Pointer, size int64, processedSize unsafe.Pointer) int {
+	os, ok := outStreams[id]
+	if !ok {
+		log.Printf("no such OutStream: %d", id)
+		return 1
+	}
+
+	h := reflect.SliceHeader{
+		Data: uintptr(data),
+		Cap:  int(size),
+		Len:  int(size),
+	}
+	buf := *(*[]byte)(unsafe.Pointer(&h))
+
+	writtenBytes, err := os.writer.WriteAt(buf, os.offset)
+	if err != nil {
+		return 1
+	}
+
+	os.offset += int64(writtenBytes)
+
+	processedSizePtr := (*int64)(processedSize)
+	*processedSizePtr = int64(writtenBytes)
 
 	return 0
 }
