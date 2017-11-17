@@ -44,8 +44,8 @@ int libc7zip_initialize() {
   LOADSYM(archive_open)
   LOADSYM(archive_get_item_count)
   LOADSYM(archive_get_item)
-  LOADSYM(archive_item_free)
-  LOADSYM(archive_extract)
+  LOADSYM(item_free)
+  LOADSYM(archive_extract_item)
 
   // TODO: archive_free ?
 
@@ -106,12 +106,12 @@ item *libc7zip_archive_get_item(archive *a, int64_t index) {
   return archive_get_item_(a, index);
 }
 
-void libc7zip_archive_item_free(item *i) {
-  return archive_item_free_(i);
+void libc7zip_item_free(item *i) {
+  return item_free_(i);
 }
 
-int libc7zip_archive_extract(archive *a, item *i, out_stream *os) {
-  return archive_extract_(a, i, os);
+int libc7zip_archive_extract_item(archive *a, item *i, out_stream *os) {
+  return archive_extract_item_(a, i, os);
 }
 
 // Gateway functions

@@ -175,11 +175,11 @@ func (a *Archive) GetItem(index int64) *Item {
 }
 
 func (i *Item) Free() {
-	C.libc7zip_archive_item_free(i.item)
+	C.libc7zip_item_free(i.item)
 }
 
 func (a *Archive) Extract(i *Item, os *OutStream) error {
-	success := C.libc7zip_archive_extract(a.arch, i.item, os.strm)
+	success := C.libc7zip_archive_extract_item(a.arch, i.item, os.strm)
 	if success == 0 {
 		return fmt.Errorf(`extraction was not successful`)
 	}

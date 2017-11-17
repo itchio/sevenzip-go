@@ -71,12 +71,12 @@ typedef item *(*archive_get_item_t)(archive *a, int64_t index);
 DECLARE(archive_get_item)
 item * libc7zip_archive_get_item(archive *a, int64_t index);
 
-// archive_item_free
-typedef void (*archive_item_free_t)(item *i);
-DECLARE(archive_item_free)
-void libc7zip_archive_item_free(item *i);
+// item_free
+typedef void (*item_free_t)(item *i);
+DECLARE(item_free)
+void libc7zip_item_free(item *i);
 
-// archive_extract
-typedef int (*archive_extract_t)(archive *a, item *i, out_stream *os);
-DECLARE(archive_extract)
-int libc7zip_archive_extract(archive *a, item *i, out_stream *os);
+// archive_extract_item
+typedef int (*archive_extract_item_t)(archive *a, item *i, out_stream *os);
+DECLARE(archive_extract_item)
+int libc7zip_archive_extract_item(archive *a, item *i, out_stream *os);

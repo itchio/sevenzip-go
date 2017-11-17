@@ -49,11 +49,44 @@ typedef struct archive archive;
 archive *archive_open(lib *l, in_stream *is);
 int64_t archive_get_item_count(archive *a);
 
+// copied from lib7zip.h so we don't have to include it
+enum property_index {
+  PROP_INDEX_BEGIN,
+
+  kpidPackSize = PROP_INDEX_BEGIN, //(Packed Size)
+  kpidAttrib, //(Attributes)
+  kpidCTime, //(Created)
+  kpidATime, //(Accessed)
+  kpidMTime, //(Modified)
+  kpidSolid, //(Solid)
+  kpidEncrypted, //(Encrypted)
+  kpidUser, //(User)
+  kpidGroup, //(Group)
+  kpidComment, //(Comment)
+  kpidPhySize, //(Physical Size)
+  kpidHeadersSize, //(Headers Size)
+  kpidChecksum, //(Checksum)
+  kpidCharacts, //(Characteristics)
+  kpidCreatorApp, //(Creator Application)
+  kpidTotalSize, //(Total Size)
+  kpidFreeSpace, //(Free Space)
+  kpidClusterSize, //(Cluster Size)
+  kpidVolumeName, //(Label)
+  kpidPath, //(FullPath)
+  kpidIsDir, //(IsDir)
+  kpidSize, //(Uncompressed Size)
+
+  PROP_INDEX_END
+};
+
 struct item;
 typedef struct item item;
 item *archive_get_item(archive *a, int64_t index);
-void archive_item_free(item *i);
-int archive_extract(archive *a, item *i, out_stream *os);
+char *item_get_string_property(item *i, int32_t property_index);
+uint64_t item_get_uint64_property(item *i, int32_t property_index);
+int32_t item_get_bool_property(item *i, int32_t property_index);
+void item_free(item *i);
+int archive_extract_item(archive *a, item *i, out_stream *os);
 
 #ifdef __cplusplus
 } // extern "C"
