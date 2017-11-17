@@ -1,6 +1,7 @@
 package sz
 
 /*
+#include <stdlib.h> // for C.free
 #include "glue.h"
 
 // forward declaration for gateway functions
@@ -174,6 +175,73 @@ func (a *Archive) GetItem(index int64) *Item {
 	}
 }
 
+type PropertyIndex int32
+
+var (
+	// Packed Size
+	PidPackSize PropertyIndex = C.kpidPackSize
+	// Attributes
+	PidAttrib PropertyIndex = C.kpidAttrib
+	// Created
+	PidCTime PropertyIndex = C.kpidCTime
+	// Accessed
+	PidATime PropertyIndex = C.kpidATime
+	// Modified
+	PidMTime PropertyIndex = C.kpidMTime
+	// Solid
+	PidSolid PropertyIndex = C.kpidSolid
+	// Encrypted
+	PidEncrypted PropertyIndex = C.kpidEncrypted
+	// User
+	PidUser PropertyIndex = C.kpidUser
+	// Group
+	PidGroup PropertyIndex = C.kpidGroup
+	// Comment
+	PidComment PropertyIndex = C.kpidComment
+	// Physical Size
+	PidPhySize PropertyIndex = C.kpidPhySize
+	// Headers Size
+	PidHeadersSize PropertyIndex = C.kpidHeadersSize
+	// Checksum
+	PidChecksum PropertyIndex = C.kpidChecksum
+	// Characteristics
+	PidCharacts PropertyIndex = C.kpidCharacts
+	// Creator Application
+	PidCreatorApp PropertyIndex = C.kpidCreatorApp
+	// Total Size
+	PidTotalSize PropertyIndex = C.kpidTotalSize
+	// Free Space
+	PidFreeSpace PropertyIndex = C.kpidFreeSpace
+	// Cluster Size
+	PidClusterSize PropertyIndex = C.kpidClusterSize
+	// Label
+	PidVolumeName PropertyIndex = C.kpidVolumeName
+	// FullPath
+	PidPath PropertyIndex = C.kpidPath
+	// IsDir
+	PidIsDir PropertyIndex = C.kpidIsDir
+	// Uncompressed Size
+	PidSize PropertyIndex = C.kpidSize
+)
+
+func (i *Item) GetStringProperty(id PropertyIndex) string {
+	cstr := C.libc7zip_item_get_string_property(i.item, C.int32_t(id))
+	if cstr == nil {
+		return ""
+	}
+
+	defer C.free(unsafe.Pointer(cstr))
+	return C.GoString(cstr)
+}
+
+func (i *Item) GetUInt64Property(id PropertyIndex) uint64 {
+	return uint64(C.libc7zip_item_get_uint64_property(i.item, C.int32_t(id)))
+}
+
+func (i *Item) GetBoolProperty(id PropertyIndex) bool {
+	return C.libc7zip_item_get_bool_property(i.item, C.int32_t(id)) != 0
+}
+
 func (i *Item) Free() {
 	C.libc7zip_item_free(i.item)
 }
@@ -195,7 +263,7 @@ func inSeekGo(id int64, offset int64, whence int32, newPosition unsafe.Pointer) 
 		return 1
 	}
 
-	log.Printf("[%d] inSeek %d whence %d, currently %d", id, offset, whence, is.offset)
+	// log.Printf("[%d] inSeek %d whence %d, currently %d", id, offset, whence, is.offset)
 
 	switch whence {
 	case io.SeekStart:
@@ -225,11 +293,11 @@ func inReadGo(id int64, data unsafe.Pointer, size int64, processedSize unsafe.Po
 	// 	size = kTestMaxOpSize
 	// }
 
-	log.Printf("[%d] inRead %d bytes at %d", id, size, is.offset)
+	// log.Printf("[%d] inRead %d bytes at %d", id, size, is.offset)
 
 	if is.offset+size > is.size {
-		log.Printf("[%d] inRead %d bytes at %d (capped)", id, size, is.offset)
 		size = is.size - is.offset
+		// log.Printf("[%d] inRead %d bytes at %d (capped)", id, size, is.offset)
 	}
 
 	h := reflect.SliceHeader{
@@ -289,7 +357,7 @@ func outWriteGo(id int64, data unsafe.Pointer, size int64, processedSize unsafe.
 	// 	size = kTestMaxOpSize
 	// }
 
-	log.Printf("[%d] outWrite %d bytes at %d", id, size, os.offset)
+	// log.Printf("[%d] outWrite %d bytes at %d", id, size, os.offset)
 
 	h := reflect.SliceHeader{
 		Data: uintptr(data),

@@ -2,11 +2,11 @@ package main
 
 import (
 	"errors"
-	"fmt"
 	"log"
 	"os"
 	"path/filepath"
 
+	humanize "github.com/dustin/go-humanize"
 	"github.com/fasterthanlime/go-libc7zip/sz"
 )
 
@@ -48,24 +48,45 @@ func main() {
 
 	for i := int64(0); i < a.GetItemCount(); i++ {
 		func() {
-			of, err := os.Create(filepath.Join("out", fmt.Sprintf("item%d.dat", i)))
-			must(err)
-
-			os, err := sz.NewOutStream(of)
-			must(err)
-			log.Printf("Created output stream...")
-			defer os.Free()
-
 			item := a.GetItem(i)
 			if item == nil {
 				must(errors.New("null item :("))
 			}
 			defer item.Free()
 
-			log.Printf("Extracting item %d...", i)
+			outPath := filepath.ToSlash(item.GetStringProperty(sz.PidPath))
+			absoluteOutPath := filepath.Join("out", outPath)
+
+			log.Printf("out      = '%s'", outPath)
+			for i := 0; i < len(outPath); i++ {
+				log.Printf("out[%d] = %0x ", i, outPath[i])
+			}
+
+			if item.GetBoolProperty(sz.PidIsDir) {
+				err := os.MkdirAll(absoluteOutPath, 0755)
+				must(err)
+				return
+			}
+
+			dirPath := filepath.Dir(absoluteOutPath)
+			must(os.MkdirAll(dirPath, 0755))
+
+			log.Printf("Extracting %s (%s compressed, %s uncompressed)...",
+				outPath,
+				humanize.IBytes(item.GetUInt64Property(sz.PidPackSize)),
+				humanize.IBytes(item.GetUInt64Property(sz.PidSize)),
+			)
+
+			of, err := os.Create(absoluteOutPath)
+			must(err)
+			defer of.Close()
+
+			os, err := sz.NewOutStream(of)
+			must(err)
+			defer os.Free()
+
 			err = a.Extract(item, os)
 			must(err)
-			log.Printf("Done!")
 		}()
 	}
 }

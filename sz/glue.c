@@ -44,7 +44,12 @@ int libc7zip_initialize() {
   LOADSYM(archive_open)
   LOADSYM(archive_get_item_count)
   LOADSYM(archive_get_item)
+
+  LOADSYM(item_get_string_property)
+  LOADSYM(item_get_uint64_property)
+  LOADSYM(item_get_bool_property)
   LOADSYM(item_free)
+
   LOADSYM(archive_extract_item)
 
   // TODO: archive_free ?
@@ -104,6 +109,18 @@ int64_t libc7zip_archive_get_item_count(archive *a) {
 
 item *libc7zip_archive_get_item(archive *a, int64_t index) {
   return archive_get_item_(a, index);
+}
+
+char *libc7zip_item_get_string_property(item *i, int32_t property_index) {
+  return item_get_string_property_(i, property_index);
+}
+
+uint64_t libc7zip_item_get_uint64_property(item *i, int32_t property_index) {
+  return item_get_uint64_property_(i, property_index);
+}
+
+int32_t libc7zip_item_get_bool_property(item *i, int32_t property_index) {
+  return item_get_bool_property_(i, property_index);
 }
 
 void libc7zip_item_free(item *i) {
