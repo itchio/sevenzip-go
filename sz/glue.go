@@ -34,6 +34,8 @@ type InStream struct {
 	id     int64
 	offset int64
 	strm   *C.in_stream
+
+	Stats *ReadStats
 }
 
 var inStreams = make(map[int64]*InStream)
@@ -293,11 +295,14 @@ func inReadGo(id int64, data unsafe.Pointer, size int64, processedSize unsafe.Po
 	// 	size = kTestMaxOpSize
 	// }
 
-	// log.Printf("[%d] inRead %d bytes at %d", id, size, is.offset)
-
 	if is.offset+size > is.size {
 		size = is.size - is.offset
-		// log.Printf("[%d] inRead %d bytes at %d (capped)", id, size, is.offset)
+	}
+
+	log.Printf("[%d] inRead %d bytes at %d", id, size, is.offset)
+
+	if is.Stats != nil {
+		is.Stats.RecordRead(is.offset, size)
 	}
 
 	h := reflect.SliceHeader{
