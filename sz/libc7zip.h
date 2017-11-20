@@ -27,7 +27,6 @@ typedef struct in_stream_def {
 
 typedef struct out_stream_def {
   int64_t id;
-	seek_cb_t seek_cb;
   write_cb_t write_cb;
 } out_stream_def;
 

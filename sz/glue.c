@@ -141,10 +141,6 @@ int inReadGo_cgo(int64_t id, void *data, int64_t size, int64_t *processed_size) 
   return inReadGo(id, data, size, processed_size);
 }
 
-int outSeekGo_cgo(int64_t id, int64_t offset, int32_t whence, int64_t *new_position) {
-  return outSeekGo(id, offset, whence, new_position);
-}
-
 int outWriteGo_cgo(int64_t id, const void *data, int64_t size, int64_t *processed_size) {
   return outWriteGo(id, (void*) data, size, processed_size);
 }

@@ -1,3 +1,4 @@
 *.dll
 *.7z
+*.exe
 /out

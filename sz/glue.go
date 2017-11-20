@@ -9,7 +9,6 @@ int inReadGo_cgo(int64_t id, void *data, int64_t size, int64_t *processed_size);
 int inSeekGo_cgo(int64_t id, int64_t offset, int32_t whence, int64_t *new_position);
 
 int outWriteGo_cgo(int64_t id, const void *data, int64_t size, int64_t *processed_size);
-int outSeekGo_cgo(int64_t id, int64_t offset, int32_t whence, int64_t *new_position);
 */
 import "C"
 import (
@@ -133,7 +132,6 @@ func NewOutStream(writer WriterAtCloser) (*OutStream, error) {
 	def := C.libc7zip_out_stream_get_def(strm)
 	def.id = C.int64_t(os.id)
 	def.write_cb = (C.write_cb_t)(unsafe.Pointer(C.outWriteGo_cgo))
-	def.seek_cb = (C.seek_cb_t)(unsafe.Pointer(C.outSeekGo_cgo))
 
 	return os, nil
 }
@@ -322,29 +320,6 @@ func inReadGo(id int64, data unsafe.Pointer, size int64, processedSize unsafe.Po
 
 	processedSizePtr := (*int64)(processedSize)
 	*processedSizePtr = int64(readBytes)
-
-	return 0
-}
-
-//export outSeekGo
-func outSeekGo(id int64, offset int64, whence int32, newPosition unsafe.Pointer) int {
-	os, ok := outStreams[id]
-	if !ok {
-		log.Printf("no such OutStream: %d", id)
-		return 1
-	}
-
-	switch whence {
-	case io.SeekStart:
-		os.offset = offset
-	case io.SeekCurrent:
-		os.offset += offset
-	case io.SeekEnd:
-		os.offset = os.size + offset
-	}
-
-	newPosPtr := (*int64)(newPosition)
-	*newPosPtr = os.offset
 
 	return 0
 }
