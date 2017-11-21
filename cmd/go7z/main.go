@@ -4,6 +4,7 @@ import (
 	"image"
 	"image/color"
 	"image/png"
+	"io"
 	"log"
 	"math"
 	"os"
@@ -53,10 +54,15 @@ func main() {
 
 	a, err := lib.OpenArchive(is, false)
 	if err != nil {
-		log.Printf("Could not open archive by ext failed, trying by signature")
+		log.Printf("Could not open archive by ext, trying by signature")
+
+		_, err = is.Seek(0, io.SeekStart)
+		must(err)
+
 		a, err = lib.OpenArchive(is, true)
 	}
 	must(err)
+
 	log.Printf("Opened archive...")
 
 	itemCount, err := a.GetItemCount()

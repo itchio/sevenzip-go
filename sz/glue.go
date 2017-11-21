@@ -123,6 +123,19 @@ func NewInStream(reader ReaderAtCloser, ext string, size int64) (*InStream, erro
 	return in, nil
 }
 
+func (in *InStream) Seek(offset int64, whence int) (int64, error) {
+	switch whence {
+	case io.SeekStart:
+		in.offset = offset
+	case io.SeekCurrent:
+		in.offset += offset
+	case io.SeekEnd:
+		in.offset = in.size + offset
+	}
+
+	return in.offset, nil
+}
+
 func (in *InStream) Free() {
 	if in.id > 0 {
 		freeInStreamId(in.id)
@@ -408,17 +421,14 @@ func inSeekGo(id int64, offset int64, whence int32, newPosition unsafe.Pointer) 
 		return 1
 	}
 
-	switch whence {
-	case io.SeekStart:
-		in.offset = offset
-	case io.SeekCurrent:
-		in.offset += offset
-	case io.SeekEnd:
-		in.offset = in.size + offset
+	newOffset, err := in.Seek(offset, int(whence))
+	if err != nil {
+		in.err = err
+		return 1
 	}
 
 	newPosPtr := (*int64)(newPosition)
-	*newPosPtr = in.offset
+	*newPosPtr = newOffset
 
 	in.err = nil
 	return 0
