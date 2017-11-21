@@ -48,6 +48,8 @@ func main() {
 	must(err)
 	log.Printf("Created input stream (%s, %d bytes)...", inPath, stats.Size())
 
+	is.Stats = &sz.ReadStats{}
+
 	a, err := lib.OpenArchive(is)
 	must(err)
 	log.Printf("Opened archive...")
@@ -57,8 +59,6 @@ func main() {
 	must(err)
 	log.Printf("Archive has %d items", itemCount)
 
-	is.Stats = &sz.ReadStats{}
-
 	ec, err := sz.NewExtractCallback(&ecs{})
 	must(err)
 	defer ec.Free()
@@ -67,8 +67,18 @@ func main() {
 	for i := 0; i < int(itemCount); i++ {
 		indices[i] = int64(i)
 	}
+	middle := itemCount / 2
 
-	err = a.ExtractSeveral(indices, ec)
+	log.Printf("Doing first half...")
+	err = a.ExtractSeveral(indices[0:middle], ec)
+	must(err)
+
+	for i := 0; i < 15; i++ {
+		is.Stats.RecordRead(0, 0)
+	}
+
+	log.Printf("Doing second half...")
+	err = a.ExtractSeveral(indices[middle:], ec)
 	must(err)
 
 	width := len(is.Stats.Reads)
@@ -139,9 +149,24 @@ func (e *ecs) GetStream(item *sz.Item) (*sz.OutStream, error) {
 		outPath = strings.Replace(outPath, string([]byte{i}), "_", -1)
 	}
 
-	log.Printf("Extracting %s", outPath)
-
 	absoluteOutPath := filepath.Join("out", outPath)
+	if item.GetBoolProperty(sz.PidIsDir) {
+		log.Printf("Making %s", outPath)
+
+		err := os.MkdirAll(absoluteOutPath, 0755)
+		if err != nil {
+			return nil, errors.Wrap(err, 0)
+		}
+
+		// is a dir, just skip it
+		return nil, nil
+	}
+
+	err := os.MkdirAll(filepath.Dir(absoluteOutPath), 0755)
+	if err != nil {
+		return nil, errors.Wrap(err, 0)
+	}
+
 	of, err := os.Create(absoluteOutPath)
 	if err != nil {
 		return nil, errors.Wrap(err, 0)
@@ -151,6 +176,8 @@ func (e *ecs) GetStream(item *sz.Item) (*sz.OutStream, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, 0)
 	}
+
+	log.Printf("Extracting %s", outPath)
 
 	return os, nil
 }
