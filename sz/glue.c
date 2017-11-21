@@ -109,8 +109,8 @@ void libc7zip_out_stream_free(out_stream *os) {
 
 //-----------------
 
-archive *libc7zip_archive_open(lib *l, in_stream *is) {
-  return archive_open_(l, is);
+archive *libc7zip_archive_open(lib *l, in_stream *is, int32_t by_signature) {
+  return archive_open_(l, is, by_signature);
 }
 
 void libc7zip_archive_close(archive *a) {

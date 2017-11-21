@@ -62,9 +62,9 @@ DECLARE(out_stream_free)
 void libc7zip_out_stream_free(out_stream *os);
 
 // archive_open
-typedef archive *(*archive_open_t)(lib *l, in_stream *s);
+typedef archive *(*archive_open_t)(lib *l, in_stream *s, int32_t by_signature);
 DECLARE(archive_open)
-archive *libc7zip_archive_open(lib *l, in_stream *s);
+archive *libc7zip_archive_open(lib *l, in_stream *s, int32_t by_signature);
 
 // archive_close
 typedef void (*archive_close_t)(archive *a);

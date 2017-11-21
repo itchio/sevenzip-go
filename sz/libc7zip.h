@@ -57,7 +57,7 @@ void out_stream_free(out_stream *s);
 
 struct archive;
 typedef struct archive archive;
-archive *archive_open(lib *l, in_stream *is);
+archive *archive_open(lib *l, in_stream *is, int32_t by_signature);
 void archive_close(archive *a);
 void archive_free(archive *a);
 int64_t archive_get_item_count(archive *a);

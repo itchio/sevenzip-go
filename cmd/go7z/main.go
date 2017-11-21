@@ -23,6 +23,7 @@ func main() {
 	lib, err := sz.NewLib()
 	must(err)
 	log.Printf("Initialized library...")
+	defer lib.Free()
 
 	args := os.Args[1:]
 
@@ -50,10 +51,13 @@ func main() {
 
 	is.Stats = &sz.ReadStats{}
 
-	a, err := lib.OpenArchive(is)
+	a, err := lib.OpenArchive(is, false)
+	if err != nil {
+		log.Printf("Could not open archive by ext failed, trying by signature")
+		a, err = lib.OpenArchive(is, true)
+	}
 	must(err)
 	log.Printf("Opened archive...")
-	defer lib.Free()
 
 	itemCount, err := a.GetItemCount()
 	must(err)
@@ -80,6 +84,14 @@ func main() {
 	log.Printf("Doing second half...")
 	err = a.ExtractSeveral(indices[middle:], ec)
 	must(err)
+
+	errs := ec.Errors()
+	if len(errs) > 0 {
+		log.Printf("There were %d errors during extraction:", len(errs))
+		for _, err := range errs {
+			log.Printf("- %s", err.Error())
+		}
+	}
 
 	width := len(is.Stats.Reads)
 	height := 800

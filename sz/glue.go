@@ -186,8 +186,13 @@ type Archive struct {
 	lib  *Lib
 }
 
-func (lib *Lib) OpenArchive(in *InStream) (*Archive, error) {
-	arch := C.libc7zip_archive_open(lib.lib, in.strm)
+func (lib *Lib) OpenArchive(in *InStream, bySignature bool) (*Archive, error) {
+	cBySignature := C.int32_t(0)
+	if bySignature {
+		cBySignature = 1
+	}
+
+	arch := C.libc7zip_archive_open(lib.lib, in.strm, cBySignature)
 	if arch == nil {
 		err := coalesceErrors(in.Error(), lib.Error(), ErrUnknownError)
 		return nil, errors.Wrap(err, 0)
@@ -371,6 +376,10 @@ func NewExtractCallback(funcs ExtractCallbackFuncs) (*ExtractCallback, error) {
 	def.set_operation_result_cb = (C.set_operation_result_cb_t)(unsafe.Pointer(C.ecSetOperationResultGo_cgo))
 
 	return ec, nil
+}
+
+func (ec *ExtractCallback) Errors() []error {
+	return ec.errors
 }
 
 func (ec *ExtractCallback) Free() {
@@ -570,7 +579,7 @@ func ecSetOperationResultGo(id int64, result int32) {
 	// then something went wrong with the extraction, should we call
 	// GetLastError() and append it somewhere ?
 	if result != 0 {
-		err := coalesceErrors(ec.archive.lib.Error())
+		err := coalesceErrors(ec.archive.lib.Error(), ErrUnknownError)
 		ec.errors = append(ec.errors, errors.Wrap(err, 0))
 	}
 }
