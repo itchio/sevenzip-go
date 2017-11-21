@@ -9,7 +9,11 @@ int inReadGo_cgo(int64_t id, void *data, int64_t size, int64_t *processed_size);
 int inSeekGo_cgo(int64_t id, int64_t offset, int32_t whence, int64_t *new_position);
 
 int outWriteGo_cgo(int64_t id, const void *data, int64_t size, int64_t *processed_size);
-void outCloseGo_cgo(int64_t id);
+
+void ecSetTotalGo_cgo(int64_t id, int64_t size);
+void ecSetCompletedGo_cgo(int64_t id, int64_t size);
+out_stream *ecGetStreamGo_cgo(int64_t id, int64_t index);
+void ecSetOperationResultGo_cgo(int64_t id, int32_t result);
 */
 import "C"
 import (
@@ -69,6 +73,24 @@ func NewLib() (*Lib, error) {
 		lib: lib,
 	}
 	return l, nil
+}
+
+func (l *Lib) Error() error {
+	le := (ErrorCode)(C.libc7zip_lib_get_last_error(l.lib))
+	switch le {
+	case ErrCodeNoError:
+		return nil
+	case ErrCodeUnknownError:
+		return ErrUnknownError
+	case ErrCodeNotInitialize:
+		return ErrNotInitialize
+	case ErrCodeNeedPassword:
+		return ErrNeedPassword
+	case ErrCodeNotSupportedArchive:
+		return ErrNotSupportedArchive
+	default:
+		return ErrUnknownError
+	}
 }
 
 func (l *Lib) Free() {
@@ -132,7 +154,6 @@ func NewOutStream(writer io.WriteCloser) (*OutStream, error) {
 	def := C.libc7zip_out_stream_get_def(strm)
 	def.id = C.int64_t(out.id)
 	def.write_cb = (C.write_cb_t)(unsafe.Pointer(C.outWriteGo_cgo))
-	def.close_cb = (C.close_cb_t)(unsafe.Pointer(C.outCloseGo_cgo))
 
 	return out, nil
 }
@@ -162,6 +183,7 @@ func (out *OutStream) Error() error {
 type Archive struct {
 	arch *C.archive
 	in   *InStream
+	lib  *Lib
 }
 
 func (lib *Lib) OpenArchive(in *InStream) (*Archive, error) {
@@ -174,6 +196,7 @@ func (lib *Lib) OpenArchive(in *InStream) (*Archive, error) {
 	a := &Archive{
 		arch: arch,
 		in:   in,
+		lib:  lib,
 	}
 	return a, nil
 }
@@ -181,14 +204,19 @@ func (lib *Lib) OpenArchive(in *InStream) (*Archive, error) {
 func (a *Archive) GetItemCount() (int64, error) {
 	res := int64(C.libc7zip_archive_get_item_count(a.arch))
 	if res < 0 {
-		return 0, errors.Wrap(a.Error(), 0)
+		err := coalesceErrors(a.in.Error(), a.lib.Error(), ErrUnknownError)
+		return 0, errors.Wrap(err, 0)
 	}
 	return res, nil
 }
 
-func (a *Archive) Error() error {
-	// TODO: relay actual 7-zip errors
-	return a.in.err
+func coalesceErrors(errors ...error) error {
+	for _, e := range errors {
+		if e != nil {
+			return e
+		}
+	}
+	return nil
 }
 
 type Item struct {
@@ -255,6 +283,24 @@ var (
 	PidSize PropertyIndex = C.kpidSize
 )
 
+type ErrorCode int32
+
+var (
+	ErrCodeNoError ErrorCode = C.LIB7ZIP_NO_ERROR
+
+	ErrCodeUnknownError ErrorCode = C.LIB7ZIP_UNKNOWN_ERROR
+	ErrUnknownError               = errors.New("Unknown 7-zip error")
+
+	ErrCodeNotInitialize ErrorCode = C.LIB7ZIP_NOT_INITIALIZE
+	ErrNotInitialize               = errors.New("7-zip not initialized")
+
+	ErrCodeNeedPassword ErrorCode = C.LIB7ZIP_NEED_PASSWORD
+	ErrNeedPassword               = errors.New("Password required to extract archive with 7-zip")
+
+	ErrCodeNotSupportedArchive ErrorCode = C.LIB7ZIP_NOT_SUPPORTED_ARCHIVE
+	ErrNotSupportedArchive               = errors.New("Archive type not supported by 7-zip")
+)
+
 func (i *Item) GetStringProperty(id PropertyIndex) string {
 	cstr := C.libc7zip_item_get_string_property(i.item, C.int32_t(id))
 	if cstr == nil {
@@ -277,22 +323,69 @@ func (i *Item) Free() {
 	C.libc7zip_item_free(i.item)
 }
 
-var ErrExtractionGeneric = errors.New("unknown extraction error")
-
 func (a *Archive) Extract(i *Item, out *OutStream) error {
+	// returns a boolean, truthiness indicates success
 	success := C.libc7zip_archive_extract_item(a.arch, i.item, out.strm)
 	if success == 0 {
-		err := a.Error()
-		if err != nil {
-			return errors.Wrap(err, 0)
-		}
+		err := coalesceErrors(a.in.Error(), out.Error(), a.lib.Error(), ErrUnknownError)
+		return errors.Wrap(err, 0)
+	}
 
-		err = out.Error()
-		if err != nil {
-			return errors.Wrap(err, 0)
-		}
+	return nil
+}
 
-		return errors.Wrap(ErrExtractionGeneric, 0)
+type ExtractCallbackFuncs interface {
+	SetProgress(completed int64, total int64)
+	GetStream(item *Item) *OutStream
+}
+
+type ExtractCallback struct {
+	id    int64
+	cb    *C.extract_callback
+	funcs ExtractCallbackFuncs
+
+	total   int64
+	archive *Archive
+	item    *Item
+	out     *OutStream
+	errors  []error
+}
+
+func NewExtractCallback(funcs ExtractCallbackFuncs) (*ExtractCallback, error) {
+	cb := C.libc7zip_extract_callback_new()
+	if cb == nil {
+		return nil, fmt.Errorf("could not create new ExtractCallback")
+	}
+
+	ec := &ExtractCallback{
+		funcs: funcs,
+		cb:    cb,
+	}
+	reserveExtractCallbackId(ec)
+
+	def := C.libc7zip_extract_callback_get_def(cb)
+	def.id = C.int64_t(ec.id)
+	def.set_total_cb = (C.set_total_cb_t)(unsafe.Pointer(C.ecSetTotalGo_cgo))
+	def.set_completed_cb = (C.set_completed_cb_t)(unsafe.Pointer(C.ecSetCompletedGo_cgo))
+	def.get_stream_cb = (C.get_stream_cb_t)(unsafe.Pointer(C.ecGetStreamGo_cgo))
+	def.set_operation_result_cb = (C.set_operation_result_cb_t)(unsafe.Pointer(C.ecSetOperationResultGo_cgo))
+
+	return ec, nil
+}
+
+func (ec *ExtractCallback) Free() {
+	C.libc7zip_extract_callback_free(ec.cb)
+}
+
+func (a *Archive) ExtractSeveral(indices []int64, ec *ExtractCallback) error {
+	ec.archive = a
+
+	// returns a boolean, truthiness indicates success
+	success := C.libc7zip_archive_extract_several(a.arch, (*C.int64_t)(unsafe.Pointer(&indices[0])), C.int32_t(len(indices)), ec.cb)
+	ec.archive = nil
+	if success == 0 {
+		err := coalesceErrors(a.in.Error(), a.lib.Error(), ErrUnknownError)
+		return errors.Wrap(err, 0)
 	}
 
 	return nil
@@ -300,7 +393,7 @@ func (a *Archive) Extract(i *Item, out *OutStream) error {
 
 //export inSeekGo
 func inSeekGo(id int64, offset int64, whence int32, newPosition unsafe.Pointer) int {
-	is, ok := inStreams[id]
+	in, ok := inStreams[id]
 	if !ok {
 		fmt.Fprintf(os.Stderr, "sz: no such InStream: %d", id)
 		return 1
@@ -308,37 +401,38 @@ func inSeekGo(id int64, offset int64, whence int32, newPosition unsafe.Pointer) 
 
 	switch whence {
 	case io.SeekStart:
-		is.offset = offset
+		in.offset = offset
 	case io.SeekCurrent:
-		is.offset += offset
+		in.offset += offset
 	case io.SeekEnd:
-		is.offset = is.size + offset
+		in.offset = in.size + offset
 	}
 
 	newPosPtr := (*int64)(newPosition)
-	*newPosPtr = is.offset
+	*newPosPtr = in.offset
 
+	in.err = nil
 	return 0
 }
 
 //export inReadGo
 func inReadGo(id int64, data unsafe.Pointer, size int64, processedSize unsafe.Pointer) int {
-	is, ok := inStreams[id]
+	in, ok := inStreams[id]
 	if !ok {
 		fmt.Fprintf(os.Stderr, "sz: no such InStream: %d", id)
 		return 1
 	}
 
-	if is.ChunkSize > 0 && size > is.ChunkSize {
-		size = is.ChunkSize
+	if in.ChunkSize > 0 && size > in.ChunkSize {
+		size = in.ChunkSize
 	}
 
-	if is.offset+size > is.size {
-		size = is.size - is.offset
+	if in.offset+size > in.size {
+		size = in.size - in.offset
 	}
 
-	if is.Stats != nil {
-		is.Stats.RecordRead(is.offset, size)
+	if in.Stats != nil {
+		in.Stats.RecordRead(in.offset, size)
 	}
 
 	h := reflect.SliceHeader{
@@ -348,17 +442,18 @@ func inReadGo(id int64, data unsafe.Pointer, size int64, processedSize unsafe.Po
 	}
 	buf := *(*[]byte)(unsafe.Pointer(&h))
 
-	readBytes, err := is.reader.ReadAt(buf, is.offset)
+	readBytes, err := in.reader.ReadAt(buf, in.offset)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "sz: readAt error: %s", err.Error())
+		in.err = err
 		return 1
 	}
 
-	is.offset += int64(readBytes)
+	in.offset += int64(readBytes)
 
 	processedSizePtr := (*int64)(processedSize)
 	*processedSizePtr = int64(readBytes)
 
+	in.err = nil
 	return 0
 }
 
@@ -391,5 +486,85 @@ func outWriteGo(id int64, data unsafe.Pointer, size int64, processedSize unsafe.
 	processedSizePtr := (*int64)(processedSize)
 	*processedSizePtr = int64(writtenBytes)
 
+	out.err = nil
 	return 0
+}
+
+//export ecSetTotalGo
+func ecSetTotalGo(id int64, size int64) {
+	ec, ok := extractCallbacks[id]
+	if !ok {
+		// should never happen
+		fmt.Fprintf(os.Stderr, "sz: no such ExtractCallback: %d", id)
+		return
+	}
+
+	ec.total = size
+}
+
+//export ecSetCompletedGo
+func ecSetCompletedGo(id int64, completed int64) {
+	ec, ok := extractCallbacks[id]
+	if !ok {
+		// should never happen
+		fmt.Fprintf(os.Stderr, "sz: no such ExtractCallback: %d", id)
+		return
+	}
+
+	ec.funcs.SetProgress(completed, ec.total)
+}
+
+//export ecGetStreamGo
+func ecGetStreamGo(id int64, index int64) *C.out_stream {
+	ec, ok := extractCallbacks[id]
+	if !ok {
+		// should never happen
+		fmt.Fprintf(os.Stderr, "sz: no such ExtractCallback: %d", id)
+		return nil
+	}
+
+	ec.item = ec.archive.GetItem(int64(index))
+	if ec.item == nil {
+		// should never happen
+		fmt.Fprintf(os.Stderr, "sz: no Item for index %d", index)
+		return nil
+	}
+
+	out := ec.funcs.GetStream(ec.item)
+	if out != nil {
+		ec.out = out
+		return out.strm
+	}
+	return nil
+}
+
+//export ecSetOperationResultGo
+func ecSetOperationResultGo(id int64, result int32) {
+	ec, ok := extractCallbacks[id]
+	if !ok {
+		// should never happen
+		fmt.Fprintf(os.Stderr, "sz: no such ExtractCallback: %d", id)
+		return
+	}
+
+	if ec.item != nil {
+		ec.item.Free()
+		ec.item = nil
+	}
+
+	if ec.out != nil {
+		err := ec.out.Close()
+		if err != nil {
+			ec.errors = append(ec.errors, errors.Wrap(err, 0))
+		}
+		ec.out = nil
+	}
+
+	// so, if result isn't NArchive::NExtract::NOperationResult::kOK
+	// then something went wrong with the extraction, should we call
+	// GetLastError() and append it somewhere ?
+	if result != 0 {
+		err := coalesceErrors(ec.archive.lib.Error())
+		ec.errors = append(ec.errors, errors.Wrap(err, 0))
+	}
 }

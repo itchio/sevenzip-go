@@ -51,7 +51,7 @@ func main() {
 
 	itemCount, err := a.GetItemCount()
 	must(err)
-	log.Printf("Archive has %d items", err)
+	log.Printf("Archive has %d items", itemCount)
 
 	is.Stats = &sz.ReadStats{}
 

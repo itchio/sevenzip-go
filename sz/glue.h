@@ -16,6 +16,11 @@ typedef lib *(*lib_new_t)();
 DECLARE(lib_new)
 lib *libc7zip_lib_new();
 
+// lib_get_last_error
+typedef int32_t (*lib_get_last_error_t)(lib *l);
+DECLARE(lib_get_last_error)
+int32_t libc7zip_lib_get_last_error(lib *l);
+
 // lib_free
 typedef void (*lib_free_t)(lib *l);
 DECLARE(lib_free)
@@ -61,6 +66,16 @@ typedef archive *(*archive_open_t)(lib *l, in_stream *s);
 DECLARE(archive_open)
 archive *libc7zip_archive_open(lib *l, in_stream *s);
 
+// archive_close
+typedef void (*archive_close_t)(archive *a);
+DECLARE(archive_close)
+void libc7zip_archive_close(archive *a);
+
+// archive_free
+typedef void (*archive_free_t)(archive *a);
+DECLARE(archive_free)
+void libc7zip_archive_free(archive *a);
+
 // archive_get_item_count
 typedef int64_t (*archive_get_item_count_t)(archive *a);
 DECLARE(archive_get_item_count)
@@ -95,3 +110,23 @@ void libc7zip_item_free(item *i);
 typedef int (*archive_extract_item_t)(archive *a, item *i, out_stream *os);
 DECLARE(archive_extract_item)
 int libc7zip_archive_extract_item(archive *a, item *i, out_stream *os);
+
+// extract_callback_new
+typedef extract_callback *(*extract_callback_new_t)();
+DECLARE(extract_callback_new)
+extract_callback *libc7zip_extract_callback_new();
+
+// extract_callback_get_def
+typedef extract_callback_def *(*extract_callback_get_def_t)(extract_callback *ec);
+DECLARE(extract_callback_get_def)
+extract_callback_def *libc7zip_extract_callback_get_def(extract_callback *ec);
+
+// extract_callback_free
+typedef void (*extract_callback_free_t)(extract_callback *ec);
+DECLARE(extract_callback_free)
+void libc7zip_extract_callback_free(extract_callback *ec);
+
+// archive_extract_several
+typedef int (*archive_extract_several_t)(archive *a, int64_t *indices, int32_t num_indices, extract_callback *ec);
+DECLARE(archive_extract_several)
+int libc7zip_archive_extract_several(archive *a, int64_t *indices, int32_t num_indices, extract_callback *ec);

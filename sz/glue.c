@@ -30,6 +30,7 @@ int libc7zip_initialize() {
   }
 
   LOADSYM(lib_new)
+  LOADSYM(lib_get_last_error)
   LOADSYM(lib_free)
 
   LOADSYM(in_stream_new)
@@ -42,6 +43,8 @@ int libc7zip_initialize() {
   LOADSYM(out_stream_free)
 
   LOADSYM(archive_open)
+  LOADSYM(archive_close)
+  LOADSYM(archive_free)
   LOADSYM(archive_get_item_count)
   LOADSYM(archive_get_item)
 
@@ -51,8 +54,11 @@ int libc7zip_initialize() {
   LOADSYM(item_free)
 
   LOADSYM(archive_extract_item)
+  LOADSYM(archive_extract_several)
 
-  // TODO: archive_free ?
+  LOADSYM(extract_callback_new)
+  LOADSYM(extract_callback_get_def)
+  LOADSYM(extract_callback_free)
 
   return 0;
 }
@@ -63,6 +69,10 @@ lib *libc7zip_lib_new() {
 
 void libc7zip_lib_free(lib *l) {
   return lib_free_(l);
+}
+
+int32_t libc7zip_lib_get_last_error(lib *l) {
+  return lib_get_last_error_(l);
 }
 
 //-----------------
@@ -103,6 +113,14 @@ archive *libc7zip_archive_open(lib *l, in_stream *is) {
   return archive_open_(l, is);
 }
 
+void libc7zip_archive_close(archive *a) {
+  return archive_close_(a);
+}
+
+void libc7zip_archive_free(archive *a) {
+  return archive_free_(a);
+}
+
 int64_t libc7zip_archive_get_item_count(archive *a) {
   return archive_get_item_count_(a);
 }
@@ -131,6 +149,24 @@ int libc7zip_archive_extract_item(archive *a, item *i, out_stream *os) {
   return archive_extract_item_(a, i, os);
 }
 
+int libc7zip_archive_extract_several(archive *a, int64_t *indices, int32_t num_indices, extract_callback *ec) {
+  return archive_extract_several_(a, indices, num_indices, ec);
+}
+
+//-----------------
+
+extract_callback *libc7zip_extract_callback_new() {
+  return extract_callback_new_();
+}
+
+extract_callback_def *libc7zip_extract_callback_get_def(extract_callback *ec) {
+  return extract_callback_get_def_(ec);
+}
+
+void libc7zip_extract_callback_free(extract_callback *ec) {
+  extract_callback_free_(ec);
+}
+
 // Gateway functions
 
 int inSeekGo_cgo(int64_t id, int64_t offset, int32_t whence, int64_t *new_position) {
@@ -145,6 +181,19 @@ int outWriteGo_cgo(int64_t id, const void *data, int64_t size, int64_t *processe
   return outWriteGo(id, (void*) data, size, processed_size);
 }
 
-void outCloseGo_cgo(int64_t id) {
-  // do nothing, we want to handle closes explicitly from the go side
+void ecSetTotalGo_cgo(int64_t id, int64_t size) {
+  ecSetTotalGo(id, size);
 }
+
+void ecSetCompletedGo_cgo(int64_t id, int64_t size) {
+  ecSetCompletedGo(id, size);
+}
+
+out_stream *ecGetStreamGo_cgo(int64_t id, int64_t index) {
+  return ecGetStreamGo(id, index);
+}
+
+void ecSetOperationResultGo_cgo(int64_t id, int32_t result) {
+  ecSetOperationResultGo(id, result);
+}
+

@@ -11,6 +11,7 @@ extern "C" {
 struct lib;
 typedef struct lib lib;
 lib *lib_new();
+int32_t lib_get_last_error(lib *l);
 void lib_free(lib *l);
 
 struct in_stream;
@@ -25,12 +26,11 @@ typedef int (*seek_cb_t)(int64_t id, int64_t offset, int32_t whence, int64_t *ne
 
 // SequentialOutStream functions
 typedef int (*write_cb_t)(int64_t id, const void *data, int64_t size, int64_t *processed_size);
-typedef int (*close_cb_t)(int64_t id);
 
 // ExtractCallback functions
 typedef void (*set_total_cb_t)(int64_t id, int64_t size);
 typedef void (*set_completed_cb_t)(int64_t id, int64_t complete_value);
-typedef out_stream *(*get_stream_cb_t)(int64_t id, int32_t index);
+typedef out_stream *(*get_stream_cb_t)(int64_t id, int64_t index);
 typedef void (*set_operation_result_cb_t)(int64_t id, int32_t operation_result);
 
 typedef struct in_stream_def {
@@ -44,7 +44,6 @@ typedef struct in_stream_def {
 typedef struct out_stream_def {
   int64_t id;
   write_cb_t write_cb;
-  close_cb_t close_cb;
 } out_stream_def;
 
 in_stream *in_stream_new();
@@ -59,6 +58,8 @@ void out_stream_free(out_stream *s);
 struct archive;
 typedef struct archive archive;
 archive *archive_open(lib *l, in_stream *is);
+void archive_close(archive *a);
+void archive_free(archive *a);
 int64_t archive_get_item_count(archive *a);
 
 // copied from lib7zip.h so we don't have to include it
@@ -91,6 +92,20 @@ enum property_index {
   PROP_INDEX_END
 };
 
+// copied from lib7zip.h so we don't have to include it
+enum error_code
+{
+  LIB7ZIP_ErrorCode_Begin,
+
+  LIB7ZIP_NO_ERROR = LIB7ZIP_ErrorCode_Begin,
+  LIB7ZIP_UNKNOWN_ERROR,
+  LIB7ZIP_NOT_INITIALIZE,
+  LIB7ZIP_NEED_PASSWORD,
+  LIB7ZIP_NOT_SUPPORTED_ARCHIVE,
+
+  LIB7ZIP_ErrorCode_End
+};
+
 struct item;
 typedef struct item item;
 item *archive_get_item(archive *a, int64_t index);
@@ -115,7 +130,7 @@ extract_callback *extract_callback_new();
 extract_callback_def *extract_callback_get_def(extract_callback *ec);
 void extract_callback_free(extract_callback *ec);
 
-int archive_extract_several(archive *a, int32_t *indices, int32_t num_indices, extract_callback *ec);
+int archive_extract_several(archive *a, int64_t *indices, int32_t num_indices, extract_callback *ec);
 
 #ifdef __cplusplus
 } // extern "C"
