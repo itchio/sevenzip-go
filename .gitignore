@@ -1,4 +1,6 @@
 *.dll
-*.7z
+*.so
+*.dylib
 *.exe
+/go7z
 /out
