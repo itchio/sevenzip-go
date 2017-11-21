@@ -144,3 +144,7 @@ int inReadGo_cgo(int64_t id, void *data, int64_t size, int64_t *processed_size) 
 int outWriteGo_cgo(int64_t id, const void *data, int64_t size, int64_t *processed_size) {
   return outWriteGo(id, (void*) data, size, processed_size);
 }
+
+void outCloseGo_cgo(int64_t id) {
+  // do nothing, we want to handle closes explicitly from the go side
+}

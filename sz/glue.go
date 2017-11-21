@@ -9,52 +9,46 @@ int inReadGo_cgo(int64_t id, void *data, int64_t size, int64_t *processed_size);
 int inSeekGo_cgo(int64_t id, int64_t offset, int32_t whence, int64_t *new_position);
 
 int outWriteGo_cgo(int64_t id, const void *data, int64_t size, int64_t *processed_size);
+void outCloseGo_cgo(int64_t id);
 */
 import "C"
 import (
 	"fmt"
 	"io"
-	"log"
+	"os"
 	"reflect"
 	"unsafe"
-)
 
-// const kTestMaxOpSize int64 = 512 * 1024
+	"github.com/go-errors/errors"
+)
 
 type ReaderAtCloser interface {
 	io.ReaderAt
 	io.Closer
 }
 
-// TODO: handle Close() correctly
 type InStream struct {
 	reader ReaderAtCloser
 	size   int64
 	id     int64
 	offset int64
 	strm   *C.in_stream
+	err    error
 
 	Stats *ReadStats
-}
 
-var inStreams = make(map[int64]*InStream)
-var inStreamSeed int64 = 666
-
-type WriterAtCloser interface {
-	io.WriterAt
-	io.Closer
+	ChunkSize int64
 }
 
 type OutStream struct {
-	writer WriterAtCloser
-	size   int64
+	writer io.WriteCloser
 	id     int64
-	offset int64
 	strm   *C.out_stream
-}
+	closed bool
+	err    error
 
-var outStreams = make(map[int64]*OutStream)
-var outStreamSeed int64 = 777
+	ChunkSize int64
+}
 
 type Lib struct {
 	lib *C.lib
@@ -87,77 +81,114 @@ func NewInStream(reader ReaderAtCloser, ext string, size int64) (*InStream, erro
 		return nil, fmt.Errorf("could not create new InStream")
 	}
 
-	is := &InStream{
+	in := &InStream{
 		reader: reader,
 		size:   size,
-		id:     inStreamSeed,
 		offset: 0,
 		strm:   strm,
 	}
-	inStreams[is.id] = is
-	inStreamSeed += 1
+	reserveInStreamId(in)
 
 	def := C.libc7zip_in_stream_get_def(strm)
-	def.size = C.int64_t(is.size)
+	def.size = C.int64_t(in.size)
 	def.ext = C.CString(ext)
-	def.id = C.int64_t(is.id)
+	def.id = C.int64_t(in.id)
 	def.read_cb = (C.read_cb_t)(unsafe.Pointer(C.inReadGo_cgo))
 	def.seek_cb = (C.seek_cb_t)(unsafe.Pointer(C.inSeekGo_cgo))
 
 	C.libc7zip_in_stream_commit_def(strm)
 
-	return is, nil
+	return in, nil
 }
 
-func (is *InStream) Free() {
-	C.libc7zip_in_stream_free(is.strm)
+func (in *InStream) Free() {
+	if in.id > 0 {
+		freeInStreamId(in.id)
+		in.id = 0
+	}
+
+	if in.strm != nil {
+		C.libc7zip_in_stream_free(in.strm)
+		in.strm = nil
+	}
 }
 
-func NewOutStream(writer WriterAtCloser) (*OutStream, error) {
+func (in *InStream) Error() error {
+	return in.err
+}
+
+func NewOutStream(writer io.WriteCloser) (*OutStream, error) {
 	strm := C.libc7zip_out_stream_new()
 	if strm == nil {
 		return nil, fmt.Errorf("could not create new OutStream")
 	}
 
-	os := &OutStream{
+	out := &OutStream{
 		writer: writer,
-		id:     outStreamSeed,
-		offset: 0,
-		size:   0, // TODO: what about this?
 		strm:   strm,
 	}
-	outStreams[os.id] = os
-	outStreamSeed += 1
+	reserveOutStreamId(out)
 
 	def := C.libc7zip_out_stream_get_def(strm)
-	def.id = C.int64_t(os.id)
+	def.id = C.int64_t(out.id)
 	def.write_cb = (C.write_cb_t)(unsafe.Pointer(C.outWriteGo_cgo))
+	def.close_cb = (C.close_cb_t)(unsafe.Pointer(C.outCloseGo_cgo))
 
-	return os, nil
+	return out, nil
 }
 
-func (os *OutStream) Free() {
-	C.libc7zip_out_stream_free(os.strm)
+func (out *OutStream) Close() error {
+	if out.id > 0 {
+		freeOutStreamId(out.id)
+		out.id = 0
+		return out.writer.Close()
+	}
+
+	// already closed
+	return nil
+}
+
+func (out *OutStream) Free() {
+	if out.strm != nil {
+		C.libc7zip_out_stream_free(out.strm)
+		out.strm = nil
+	}
+}
+
+func (out *OutStream) Error() error {
+	return out.err
 }
 
 type Archive struct {
 	arch *C.archive
+	in   *InStream
 }
 
-func (lib *Lib) OpenArchive(is *InStream) (*Archive, error) {
-	arch := C.libc7zip_archive_open(lib.lib, is.strm)
+func (lib *Lib) OpenArchive(in *InStream) (*Archive, error) {
+	arch := C.libc7zip_archive_open(lib.lib, in.strm)
 	if arch == nil {
+		// TODO: relay actual 7-zip errors
 		return nil, fmt.Errorf("could not open archive")
 	}
 
 	a := &Archive{
 		arch: arch,
+		in:   in,
 	}
 	return a, nil
 }
 
-func (a *Archive) GetItemCount() int64 {
-	return int64(C.libc7zip_archive_get_item_count(a.arch))
+func (a *Archive) GetItemCount() (int64, error) {
+	res := int64(C.libc7zip_archive_get_item_count(a.arch))
+	if res < 0 {
+		return 0, errors.Wrap(a.Error(), 0)
+	}
+	return res, nil
+}
+
+func (a *Archive) Error() error {
+	// TODO: relay actual 7-zip errors
+	return a.in.err
 }
 
 type Item struct {
@@ -246,10 +277,22 @@ func (i *Item) Free() {
 	C.libc7zip_item_free(i.item)
 }
 
-func (a *Archive) Extract(i *Item, os *OutStream) error {
-	success := C.libc7zip_archive_extract_item(a.arch, i.item, os.strm)
+var ErrExtractionGeneric = errors.New("unknown extraction error")
+
+func (a *Archive) Extract(i *Item, out *OutStream) error {
+	success := C.libc7zip_archive_extract_item(a.arch, i.item, out.strm)
 	if success == 0 {
-		return fmt.Errorf(`extraction was not successful`)
+		err := a.Error()
+		if err != nil {
+			return errors.Wrap(err, 0)
+		}
+
+		err = out.Error()
+		if err != nil {
+			return errors.Wrap(err, 0)
+		}
+
+		return errors.Wrap(ErrExtractionGeneric, 0)
 	}
 
 	return nil
@@ -259,11 +302,9 @@ func (a *Archive) Extract(i *Item, os *OutStream) error {
 func inSeekGo(id int64, offset int64, whence int32, newPosition unsafe.Pointer) int {
 	is, ok := inStreams[id]
 	if !ok {
-		log.Printf("no such InStream: %d", id)
+		fmt.Fprintf(os.Stderr, "sz: no such InStream: %d", id)
 		return 1
 	}
-
-	// log.Printf("[%d] inSeek %d whence %d, currently %d", id, offset, whence, is.offset)
 
 	switch whence {
 	case io.SeekStart:
@@ -284,20 +325,17 @@ func inSeekGo(id int64, offset int64, whence int32, newPosition unsafe.Pointer) 
 func inReadGo(id int64, data unsafe.Pointer, size int64, processedSize unsafe.Pointer) int {
 	is, ok := inStreams[id]
 	if !ok {
-		log.Printf("no such InStream: %d", id)
+		fmt.Fprintf(os.Stderr, "sz: no such InStream: %d", id)
 		return 1
 	}
 
-	// FIXME: just testing things
-	// if size > kTestMaxOpSize {
-	// 	size = kTestMaxOpSize
-	// }
+	if is.ChunkSize > 0 && size > is.ChunkSize {
+		size = is.ChunkSize
+	}
 
 	if is.offset+size > is.size {
 		size = is.size - is.offset
 	}
-
-	log.Printf("[%d] inRead %d bytes at %d", id, size, is.offset)
 
 	if is.Stats != nil {
 		is.Stats.RecordRead(is.offset, size)
@@ -312,7 +350,7 @@ func inReadGo(id int64, data unsafe.Pointer, size int64, processedSize unsafe.Po
 
 	readBytes, err := is.reader.ReadAt(buf, is.offset)
 	if err != nil {
-		log.Printf("readAt error: %s", err.Error())
+		fmt.Fprintf(os.Stderr, "sz: readAt error: %s", err.Error())
 		return 1
 	}
 
@@ -326,18 +364,16 @@ func inReadGo(id int64, data unsafe.Pointer, size int64, processedSize unsafe.Po
 
 //export outWriteGo
 func outWriteGo(id int64, data unsafe.Pointer, size int64, processedSize unsafe.Pointer) int {
-	os, ok := outStreams[id]
+	out, ok := outStreams[id]
 	if !ok {
-		log.Printf("no such OutStream: %d", id)
+		// should never happen
+		fmt.Fprintf(os.Stderr, "sz: no such OutStream: %d", id)
 		return 1
 	}
 
-	// FIXME: just testing things
-	// if size > kTestMaxOpSize {
-	// 	size = kTestMaxOpSize
-	// }
-
-	// log.Printf("[%d] outWrite %d bytes at %d", id, size, os.offset)
+	if out.ChunkSize > 0 && size > out.ChunkSize {
+		size = out.ChunkSize
+	}
 
 	h := reflect.SliceHeader{
 		Data: uintptr(data),
@@ -346,13 +382,11 @@ func outWriteGo(id int64, data unsafe.Pointer, size int64, processedSize unsafe.
 	}
 	buf := *(*[]byte)(unsafe.Pointer(&h))
 
-	writtenBytes, err := os.writer.WriteAt(buf, os.offset)
+	writtenBytes, err := out.writer.Write(buf)
 	if err != nil {
-		log.Printf("writeAt error: %s", err.Error())
+		out.err = err
 		return 1
 	}
-
-	os.offset += int64(writtenBytes)
 
 	processedSizePtr := (*int64)(processedSize)
 	*processedSizePtr = int64(writtenBytes)

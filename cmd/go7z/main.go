@@ -49,11 +49,13 @@ func main() {
 	log.Printf("Opened archive...")
 	defer lib.Free()
 
-	log.Printf("Archive has %d items", a.GetItemCount())
+	itemCount, err := a.GetItemCount()
+	must(err)
+	log.Printf("Archive has %d items", err)
 
 	is.Stats = &sz.ReadStats{}
 
-	for i := int64(0); i < a.GetItemCount(); i++ {
+	for i := int64(0); i < itemCount; i++ {
 		for j := 0; j < 2; j++ {
 			is.Stats.RecordRead(0, 0)
 		}
@@ -96,10 +98,10 @@ func main() {
 
 			of, err := os.Create(absoluteOutPath)
 			must(err)
-			defer of.Close()
 
 			os, err := sz.NewOutStream(of)
 			must(err)
+			defer os.Close()
 			defer os.Free()
 
 			err = a.Extract(item, os)

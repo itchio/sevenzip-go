@@ -13,9 +13,25 @@ typedef struct lib lib;
 lib *lib_new();
 void lib_free(lib *l);
 
+struct in_stream;
+typedef struct in_stream in_stream;
+
+struct out_stream;
+typedef struct out_stream out_stream;
+
+// InStream functions
 typedef int (*read_cb_t)(int64_t id, void *data, int64_t size, int64_t *processed_size);
 typedef int (*seek_cb_t)(int64_t id, int64_t offset, int32_t whence, int64_t *new_position);
+
+// SequentialOutStream functions
 typedef int (*write_cb_t)(int64_t id, const void *data, int64_t size, int64_t *processed_size);
+typedef int (*close_cb_t)(int64_t id);
+
+// ExtractCallback functions
+typedef void (*set_total_cb_t)(int64_t id, int64_t size);
+typedef void (*set_completed_cb_t)(int64_t id, int64_t complete_value);
+typedef out_stream *(*get_stream_cb_t)(int64_t id, int32_t index);
+typedef void (*set_operation_result_cb_t)(int64_t id, int32_t operation_result);
 
 typedef struct in_stream_def {
   int64_t id;
@@ -28,17 +44,14 @@ typedef struct in_stream_def {
 typedef struct out_stream_def {
   int64_t id;
   write_cb_t write_cb;
+  close_cb_t close_cb;
 } out_stream_def;
 
-struct in_stream;
-typedef struct in_stream in_stream;
 in_stream *in_stream_new();
 in_stream_def *in_stream_get_def(in_stream *is);
 void in_stream_commit_def(in_stream *is);
 void in_stream_free(in_stream *is);
 
-struct out_stream;
-typedef struct out_stream out_stream;
 out_stream *out_stream_new();
 out_stream_def *out_stream_get_def(out_stream *s);
 void out_stream_free(out_stream *s);
@@ -86,6 +99,23 @@ uint64_t item_get_uint64_property(item *i, int32_t property_index);
 int32_t item_get_bool_property(item *i, int32_t property_index);
 void item_free(item *i);
 int archive_extract_item(archive *a, item *i, out_stream *os);
+
+struct extract_callback;
+typedef struct extract_callback extract_callback;
+
+typedef struct extract_callback_def {
+  int64_t id;
+  set_total_cb_t set_total_cb;
+  set_completed_cb_t set_completed_cb;
+  get_stream_cb_t get_stream_cb;
+  set_operation_result_cb_t set_operation_result_cb;
+} extract_callback_def;
+
+extract_callback *extract_callback_new();
+extract_callback_def *extract_callback_get_def(extract_callback *ec);
+void extract_callback_free(extract_callback *ec);
+
+int archive_extract_several(archive *a, int32_t *indices, int32_t num_indices, extract_callback *ec);
 
 #ifdef __cplusplus
 } // extern "C"
