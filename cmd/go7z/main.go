@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"image"
 	"image/color"
 	"image/png"
@@ -13,7 +12,12 @@ import (
 
 	humanize "github.com/dustin/go-humanize"
 	"github.com/fasterthanlime/go-libc7zip/sz"
+	"github.com/go-errors/errors"
 )
+
+type ecs struct {
+	// muffin
+}
 
 func main() {
 	lib, err := sz.NewLib()
@@ -55,59 +59,17 @@ func main() {
 
 	is.Stats = &sz.ReadStats{}
 
-	for i := int64(0); i < itemCount; i++ {
-		for j := 0; j < 2; j++ {
-			is.Stats.RecordRead(0, 0)
-		}
+	ec, err := sz.NewExtractCallback(&ecs{})
+	must(err)
+	defer ec.Free()
 
-		func() {
-			item := a.GetItem(i)
-			if item == nil {
-				must(errors.New("null item :("))
-			}
-			defer item.Free()
-
-			outPath := filepath.ToSlash(item.GetStringProperty(sz.PidPath))
-			// Remove illegal character for windows paths, see
-			// https://msdn.microsoft.com/en-us/library/windows/desktop/aa365247(v=vs.85).aspx
-			for i := byte(0); i <= 31; i++ {
-				outPath = strings.Replace(outPath, string([]byte{i}), "_", -1)
-			}
-
-			absoluteOutPath := filepath.Join("out", outPath)
-
-			// log.Printf("out      = '%s'", outPath)
-			// for i := 0; i < len(outPath); i++ {
-			// 	log.Printf("out[%d] = %0x ", i, outPath[i])
-			// }
-
-			if item.GetBoolProperty(sz.PidIsDir) {
-				err := os.MkdirAll(absoluteOutPath, 0755)
-				must(err)
-				return
-			}
-
-			dirPath := filepath.Dir(absoluteOutPath)
-			must(os.MkdirAll(dirPath, 0755))
-
-			log.Printf("Extracting %s (%s compressed, %s uncompressed)...",
-				outPath,
-				humanize.IBytes(item.GetUInt64Property(sz.PidPackSize)),
-				humanize.IBytes(item.GetUInt64Property(sz.PidSize)),
-			)
-
-			of, err := os.Create(absoluteOutPath)
-			must(err)
-
-			os, err := sz.NewOutStream(of)
-			must(err)
-			defer os.Close()
-			defer os.Free()
-
-			err = a.Extract(item, os)
-			must(err)
-		}()
+	var indices = make([]int64, itemCount)
+	for i := 0; i < int(itemCount); i++ {
+		indices[i] = int64(i)
 	}
+
+	err = a.ExtractSeveral(indices, ec)
+	must(err)
 
 	width := len(is.Stats.Reads)
 	height := 800
@@ -167,4 +129,35 @@ func must(err error) {
 	if err != nil {
 		log.Panic(err)
 	}
+}
+
+func (e *ecs) GetStream(item *sz.Item) (*sz.OutStream, error) {
+	outPath := filepath.ToSlash(item.GetStringProperty(sz.PidPath))
+	// Remove illegal character for windows paths, see
+	// https://msdn.microsoft.com/en-us/library/windows/desktop/aa365247(v=vs.85).aspx
+	for i := byte(0); i <= 31; i++ {
+		outPath = strings.Replace(outPath, string([]byte{i}), "_", -1)
+	}
+
+	log.Printf("Extracting %s", outPath)
+
+	absoluteOutPath := filepath.Join("out", outPath)
+	of, err := os.Create(absoluteOutPath)
+	if err != nil {
+		return nil, errors.Wrap(err, 0)
+	}
+
+	os, err := sz.NewOutStream(of)
+	if err != nil {
+		return nil, errors.Wrap(err, 0)
+	}
+
+	return os, nil
+}
+
+func (e *ecs) SetProgress(complete int64, total int64) {
+	log.Printf("Progress: %s / %s",
+		humanize.IBytes(uint64(complete)),
+		humanize.IBytes(uint64(total)),
+	)
 }

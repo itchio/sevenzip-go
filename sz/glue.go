@@ -189,8 +189,8 @@ type Archive struct {
 func (lib *Lib) OpenArchive(in *InStream) (*Archive, error) {
 	arch := C.libc7zip_archive_open(lib.lib, in.strm)
 	if arch == nil {
-		// TODO: relay actual 7-zip errors
-		return nil, fmt.Errorf("could not open archive")
+		err := coalesceErrors(in.Error(), lib.Error(), ErrUnknownError)
+		return nil, errors.Wrap(err, 0)
 	}
 
 	a := &Archive{
@@ -336,7 +336,7 @@ func (a *Archive) Extract(i *Item, out *OutStream) error {
 
 type ExtractCallbackFuncs interface {
 	SetProgress(completed int64, total int64)
-	GetStream(item *Item) *OutStream
+	GetStream(item *Item) (*OutStream, error)
 }
 
 type ExtractCallback struct {
@@ -530,7 +530,12 @@ func ecGetStreamGo(id int64, index int64) *C.out_stream {
 		return nil
 	}
 
-	out := ec.funcs.GetStream(ec.item)
+	out, err := ec.funcs.GetStream(ec.item)
+	if err != nil {
+		ec.errors = append(ec.errors, err)
+		return nil
+	}
+
 	if out != nil {
 		ec.out = out
 		return out.strm
@@ -557,6 +562,7 @@ func ecSetOperationResultGo(id int64, result int32) {
 		if err != nil {
 			ec.errors = append(ec.errors, errors.Wrap(err, 0))
 		}
+		ec.out.Free()
 		ec.out = nil
 	}
 
