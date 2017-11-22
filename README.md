@@ -1,51 +1,65 @@
-# go-libc7zip
+# sevenzip-go
 
-A cgo binding for libc7zip
+Bindings to use 7-zip as a library from golang.
 
-  * <https://github.com/fasterthanlime/libc7zip> is a C wrapper for...
-  * <https://github.com/stonewell/lib7zip> which is a C++ wrapper for either of
-    * <http://7-zip.org/> - the official 7-zip distribution (Windows)
-    * <http://p7zip.sourceforge.net/> - a 7-zip port for Linux/macOS/etc.
+### Structure
 
-### Usage
+sevenzip-go needs two dynamic libraries to operate, and it expects them to be
+in the executable's folder.
 
-See `./cmd/go7z` for a sample.
+For example
 
-### How it works
+  * On Windows, you'll need `foobar.exe`, `libc7zip.dll`, and `7z.dll` in the same directory
+  * On Linux, you'll need `foobar`, `libc7zip.so`, and `7z.so` in the same directory
+  * On macOS, you'll need `foobar`, `libc7zip.dylib`, and `7z.so` in the same directory
 
-You probably don't want to know.
+Note: the 7-zip library is called `7z.so` on macOS, that's not a typo.
 
-#### No seriously, how does it work?
+If it can't find it, it'll print messages to stderr (and return an error).
 
-Ok so:
+#### Rationale
 
-  * the `sz` package contains a `glue.c` file
-  * it loads the libc7zip library dynamically (with `LoadLibrary` or `dlopen`)
-  * ...then it sets function pointers from the loaded library
-  * it also contains a bunch of cgo callbacks, and wrappers of libc7zip functions
-  * then it lets you interact with all that via Go types
+sevenzip-go was made primarily to serve as a decompression engine for <https://github.com/itchio/butler>
 
-libc7zip is linked statically against lib7zip, which does it
-own loading of `7z.dll` (or `lib7z.so`, or `lib7z.dylib`), the point is:
-you'll need both `7z.dll` and `libc7zip.dll` in your %PATH% on Windows.
+most of butler's functionality does not require 7-zip, and:
 
-#### Why it works
+  * we want folks to be able to build butler easily, without having to build C/C++ projects manually
+  * we want folks to be able to run their custom butler builds easily, without having to worry about missing
+  dynamic libraries
+  * we want to use `7z.dll` from the official 7-zip builds (it is a notorious pain to build, as it requires MSVC 2010)
 
-I have no idea.
+While the whole setup sounds crazy (especially considering the whole Go->cgo->C->C++->COM/C++ pipeline),
+it fits all those goals.
 
-#### No I mean, why is it designed like that?
+### Caveats
 
-The use case is for `butler` to be able to extract archives on-the-fly using
-7-zip's decompression engine (for all its codecs), consuming remote files
-(over HTTPS, via itchfs).
+Pay attention to the dynamic library requirement above:
 
-But butler is built in various configurations by a bunch of folks, and I don't
-want it to stop working if it's missing a dynamic library or two. I also don't
-want folks to have to compile 7-zip/p7zip and lib7zip when they just want the
-bulk of butler's functionality.
+> Neither sevenzip-go nor lib7zip look for DLLs in the `PATH` or `LD_LIBRARY_PATH` or `DYLD_LIBRARY_PATH`,
+> they only look **in the executable's directory**. This is on purpose, so we don't accidentally load
+> an older version of 7-zip.
 
-Ergo: double layer of dynamic libraries, everybody's happy.
+The library allocates memory via C functions, so you should make sure to call `.Free()` on the
+various objects you get from sevenzip-go.
+
+Error handling is best-effort, but there's many moving pieces involved here. Some items of an archive
+may fail to extract, the errors can be retrieved with `extractCallback.Errors()` (which returns a slice of
+errors).
+
+### Example
+
+The `./cmd/go7z` package
+
+### Links
+
+  * <https://github.com/itchio/libc7zip> - a C wrapper for lib7zip, based on structs and function pointers
+  * <https://github.com/itchio/lib7zip> - a C++ wrapper for the 7-zip COM API, based on abstract base classes
+  * <http://7-zip.org/> - the official 7-zip distribution (Windows)
+  * <http://p7zip.sourceforge.net/> - a 7-zip port for Linux/macOS/etc.
 
 ### License
 
-go-libc7zip is cautiously released under the MIT license, see the `LICENSE` file
+sevenzip-go is released under the MIT license, see the `LICENSE` file.
+
+Other required components are distributed under the MPL 2.0, the LGPL 2.1, and
+other terms - see their own `LICENSE` or `COPYING` files.
