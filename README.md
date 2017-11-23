@@ -9,7 +9,7 @@ in the executable's folder.
 
 For example
 
-  * On Windows, you'll need `foobar.exe`, `libc7zip.dll`, and `7z.dll` in the same directory
+  * On Windows, you'll need `foobar.exe`, `c7zip.dll`, and `7z.dll` in the same directory
   * On Linux, you'll need `foobar`, `libc7zip.so`, and `7z.so` in the same directory
   * On macOS, you'll need `foobar`, `libc7zip.dylib`, and `7z.so` in the same directory
 
