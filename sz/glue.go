@@ -163,6 +163,17 @@ func NewInStream(reader ReaderAtCloser, ext string, size int64) (*InStream, erro
 	return in, nil
 }
 
+func (in *InStream) SetExt(ext string) {
+	strm := in.strm
+	if strm == nil {
+		return
+	}
+
+	def := C.libc7zip_in_stream_get_def(strm)
+	def.ext = C.CString(ext)
+	C.libc7zip_in_stream_commit_def(strm)
+}
+
 func (in *InStream) Seek(offset int64, whence int) (int64, error) {
 	switch whence {
 	case io.SeekStart:
