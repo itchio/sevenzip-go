@@ -498,11 +498,14 @@ func (a *Archive) ExtractSeveral(indices []int64, ec *ExtractCallback) error {
 
 //export inSeekGo
 func inSeekGo(id int64, offset int64, whence int32, newPosition unsafe.Pointer) int {
-	p, ok := inStreams.Get(id)
+	p, ok := inStreams.Load(id)
 	if !ok {
 		return 1
 	}
-	in := (*InStream)(p)
+	in, ok := (p).(*InStream)
+	if !ok {
+		return 1
+	}
 
 	newOffset, err := in.Seek(offset, int(whence))
 	if err != nil {
@@ -519,11 +522,14 @@ func inSeekGo(id int64, offset int64, whence int32, newPosition unsafe.Pointer) 
 
 //export inReadGo
 func inReadGo(id int64, data unsafe.Pointer, size int64, processedSize unsafe.Pointer) int {
-	p, ok := inStreams.Get(id)
+	p, ok := inStreams.Load(id)
 	if !ok {
 		return 1
 	}
-	in := (*InStream)(p)
+	in, ok := (p).(*InStream)
+	if !ok {
+		return 1
+	}
 
 	if in.ChunkSize > 0 && size > in.ChunkSize {
 		size = in.ChunkSize
@@ -561,11 +567,14 @@ func inReadGo(id int64, data unsafe.Pointer, size int64, processedSize unsafe.Po
 
 //export outWriteGo
 func outWriteGo(id int64, data unsafe.Pointer, size int64, processedSize unsafe.Pointer) int {
-	p, ok := outStreams.Get(id)
+	p, ok := outStreams.Load(id)
 	if !ok {
 		return 1
 	}
-	out := (*OutStream)(p)
+	out, ok := (p).(*OutStream)
+	if !ok {
+		return 1
+	}
 
 	if out.ChunkSize > 0 && size > out.ChunkSize {
 		size = out.ChunkSize
@@ -593,33 +602,42 @@ func outWriteGo(id int64, data unsafe.Pointer, size int64, processedSize unsafe.
 
 //export ecSetTotalGo
 func ecSetTotalGo(id int64, size int64) {
-	p, ok := extractCallbacks.Get(id)
+	p, ok := extractCallbacks.Load(id)
+	if !ok {
+		return
+	}
+	ec, ok := (p).(*ExtractCallback)
 	if !ok {
 		return
 	}
 
-	ec := (*ExtractCallback)(p)
 	ec.total = size
 }
 
 //export ecSetCompletedGo
 func ecSetCompletedGo(id int64, completed int64) {
-	p, ok := extractCallbacks.Get(id)
+	p, ok := extractCallbacks.Load(id)
+	if !ok {
+		return
+	}
+	ec, ok := (p).(*ExtractCallback)
 	if !ok {
 		return
 	}
 
-	ec := (*ExtractCallback)(p)
 	ec.funcs.SetProgress(completed, ec.total)
 }
 
 //export ecGetStreamGo
 func ecGetStreamGo(id int64, index int64) *C.out_stream {
-	p, ok := extractCallbacks.Get(id)
+	p, ok := extractCallbacks.Load(id)
 	if !ok {
 		return nil
 	}
-	ec := (*ExtractCallback)(p)
+	ec, ok := (p).(*ExtractCallback)
+	if !ok {
+		return nil
+	}
 
 	ec.item = ec.archive.GetItem(int64(index))
 	if ec.item == nil {
@@ -642,11 +660,14 @@ func ecGetStreamGo(id int64, index int64) *C.out_stream {
 
 //export ecSetOperationResultGo
 func ecSetOperationResultGo(id int64, result int32) {
-	p, ok := extractCallbacks.Get(id)
+	p, ok := extractCallbacks.Load(id)
 	if !ok {
 		return
 	}
-	ec := (*ExtractCallback)(p)
+	ec, ok := (p).(*ExtractCallback)
+	if !ok {
+		return
+	}
 
 	if ec.item != nil {
 		ec.item.Free()

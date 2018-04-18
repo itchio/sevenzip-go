@@ -1,10 +1,8 @@
 package sz
 
 import (
+	"sync"
 	"sync/atomic"
-	"unsafe"
-
-	"github.com/cornelk/hashmap"
 )
 
 var seed int64 = 1
@@ -13,43 +11,43 @@ var seed int64 = 1
 // OutStream
 //==========================
 
-var outStreams = &hashmap.HashMap{}
+var outStreams sync.Map
 
 func reserveOutStreamId(obj *OutStream) {
 	obj.id = atomic.AddInt64(&seed, 1)
-	outStreams.Set(obj.id, unsafe.Pointer(obj))
+	outStreams.Store(obj.id, obj)
 }
 
 func freeOutStreamId(id int64) {
-	outStreams.Del(id)
+	outStreams.Delete(id)
 }
 
 //==========================
 // InStream
 //==========================
 
-var inStreams = &hashmap.HashMap{}
+var inStreams sync.Map
 
 func reserveInStreamId(obj *InStream) {
 	obj.id = atomic.AddInt64(&seed, 1)
-	inStreams.Set(obj.id, unsafe.Pointer(obj))
+	inStreams.Store(obj.id, obj)
 }
 
 func freeInStreamId(id int64) {
-	inStreams.Del(id)
+	inStreams.Delete(id)
 }
 
 //==========================
 // ExtractCallback
 //==========================
 
-var extractCallbacks = &hashmap.HashMap{}
+var extractCallbacks sync.Map
 
 func reserveExtractCallbackId(obj *ExtractCallback) {
 	obj.id = atomic.AddInt64(&seed, 1)
-	extractCallbacks.Set(obj.id, unsafe.Pointer(obj))
+	extractCallbacks.Store(obj.id, obj)
 }
 
 func freeExtractCallbackId(id int64) {
-	extractCallbacks.Del(id)
+	extractCallbacks.Delete(id)
 }
