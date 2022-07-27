@@ -71,6 +71,11 @@ typedef archive *(*archive_open_t)(lib *l, in_stream *s, int32_t by_signature);
 DECLARE(archive_open)
 archive *libc7zip_archive_open(lib *l, in_stream *s, int32_t by_signature);
 
+// archive_open_ex
+typedef archive *(*archive_open_ex_t)(lib *l, in_stream *s, const char *password, int32_t by_signature);
+DECLARE(archive_open_ex)
+archive *libc7zip_archive_open_ex(lib *l, in_stream *s, const char *password, int32_t by_signature);
+
 // archive_close
 typedef void (*archive_close_t)(archive *a);
 DECLARE(archive_close)

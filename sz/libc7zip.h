@@ -65,6 +65,7 @@ MYEXPORT void out_stream_free(out_stream *s);
 struct archive;
 typedef struct archive archive;
 MYEXPORT archive *archive_open(lib *l, in_stream *is, int32_t by_signature);
+MYEXPORT archive *archive_open_ex(lib *l, in_stream *is, const char *password, int32_t by_signature);
 MYEXPORT void archive_close(archive *a);
 MYEXPORT void archive_free(archive *a);
 MYEXPORT int64_t archive_get_item_count(archive *a);

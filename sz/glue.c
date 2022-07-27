@@ -52,6 +52,7 @@ int libc7zip_initialize(char *lib_path) {
   LOADSYM(out_stream_free)
 
   LOADSYM(archive_open)
+  LOADSYM(archive_open_ex)
   LOADSYM(archive_close)
   LOADSYM(archive_free)
   LOADSYM(archive_get_archive_format)
@@ -127,6 +128,10 @@ void libc7zip_out_stream_free(out_stream *os) {
 
 archive *libc7zip_archive_open(lib *l, in_stream *is, int32_t by_signature) {
   return archive_open_(l, is, by_signature);
+}
+
+archive *libc7zip_archive_open_ex(lib *l, in_stream *is, const char *password, int32_t by_signature) {
+  return archive_open_ex_(l, is, password, by_signature);
 }
 
 void libc7zip_archive_close(archive *a) {

@@ -275,6 +275,26 @@ func (lib *Lib) OpenArchive(in *InStream, bySignature bool) (*Archive, error) {
 	return a, nil
 }
 
+func (lib *Lib) OpenArchiveEx(in *InStream, password string, bySignature bool) (*Archive, error) {
+	cBySignature := C.int32_t(0)
+	if bySignature {
+		cBySignature = 1
+	}
+
+	arch := C.libc7zip_archive_open_ex(lib.lib, in.strm, C.CString(password), cBySignature)
+	if arch == nil {
+		err := coalesceErrors(in.Error(), lib.Error(), ErrUnknownError)
+		return nil, errors.WithStack(err)
+	}
+
+	a := &Archive{
+		arch: arch,
+		in:   in,
+		lib:  lib,
+	}
+	return a, nil
+}
+
 func (a *Archive) Close() {
 	C.libc7zip_archive_close(a.arch)
 }

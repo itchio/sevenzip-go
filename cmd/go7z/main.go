@@ -29,8 +29,13 @@ func main() {
 	args := os.Args[1:]
 
 	if len(args) < 1 {
-		log.Printf("Usage: go7z ARCHIVE")
+		log.Printf("Usage: go7z ARCHIVE [PASSWORD]")
 		os.Exit(1)
+	}
+
+	password := ""
+	if len(args) >= 2 {
+		password = args[1]
 	}
 
 	inPath := args[0]
@@ -52,14 +57,14 @@ func main() {
 
 	is.Stats = &sz.ReadStats{}
 
-	a, err := lib.OpenArchive(is, false)
+	a, err := lib.OpenArchiveEx(is, password, false)
 	if err != nil {
 		log.Printf("Could not open archive by ext, trying by signature")
 
 		_, err = is.Seek(0, io.SeekStart)
 		must(err)
 
-		a, err = lib.OpenArchive(is, true)
+		a, err = lib.OpenArchiveEx(is, password, true)
 	}
 	must(err)
 
