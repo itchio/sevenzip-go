@@ -40,6 +40,12 @@ typedef void (*set_completed_cb_t)(int64_t id, int64_t complete_value);
 typedef out_stream *(*get_stream_cb_t)(int64_t id, int64_t index);
 typedef void (*set_operation_result_cb_t)(int64_t id, int32_t operation_result);
 
+// MultiVolumeCallback functions
+typedef char *(*get_first_volume_name_cb_t)(void);
+typedef int (*move_to_volume_cb_t)(char *volumeName);
+typedef uint64_t (*get_current_volume_size_cb_t)(void);
+typedef in_stream *(*open_current_volume_stream_cb_t)(void);
+
 typedef struct in_stream_def {
   int64_t id;
 	seek_cb_t seek_cb;
@@ -66,6 +72,24 @@ struct archive;
 typedef struct archive archive;
 MYEXPORT archive *archive_open(lib *l, in_stream *is, int32_t by_signature);
 MYEXPORT archive *archive_open_ex(lib *l, in_stream *is, const char *password, int32_t by_signature);
+
+struct multivolume_callback;
+typedef struct multivolume_callback multivolume_callback;
+
+typedef struct multivolume_callback_def {
+  int64_t id;
+  get_first_volume_name_cb_t get_first_volume_name_cb;
+  move_to_volume_cb_t move_to_volume_cb;
+  get_current_volume_size_cb_t get_current_volume_size_cb;
+  open_current_volume_stream_cb_t open_current_volume_stream_cb;
+} multivolume_callback_def;
+
+MYEXPORT multivolume_callback *multivolume_callback_new();
+MYEXPORT multivolume_callback_def *multivolume_callback_get_def(multivolume_callback *ec);
+MYEXPORT void multivolume_callback_free(multivolume_callback *mc);
+
+MYEXPORT archive *archive_multiopen(lib *l, multivolume_callback *mc, const char *password, int32_t by_signature);
+
 MYEXPORT void archive_close(archive *a);
 MYEXPORT void archive_free(archive *a);
 MYEXPORT int64_t archive_get_item_count(archive *a);

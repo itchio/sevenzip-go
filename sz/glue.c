@@ -53,6 +53,13 @@ int libc7zip_initialize(char *lib_path) {
 
   LOADSYM(archive_open)
   LOADSYM(archive_open_ex)
+
+  LOADSYM(multivolume_callback_new)
+  LOADSYM(multivolume_callback_get_def)
+  LOADSYM(multivolume_callback_free)
+
+  LOADSYM(archive_multiopen)
+
   LOADSYM(archive_close)
   LOADSYM(archive_free)
   LOADSYM(archive_get_archive_format)
@@ -134,6 +141,10 @@ archive *libc7zip_archive_open_ex(lib *l, in_stream *is, const char *password, i
   return archive_open_ex_(l, is, password, by_signature);
 }
 
+archive *libc7zip_archive_multiopen(lib *l, multivolume_callback *mc, const char *password, int32_t by_signature) {
+  return archive_multiopen_(l, mc, password, by_signature);
+}
+
 void libc7zip_archive_close(archive *a) {
   return archive_close_(a);
 }
@@ -200,6 +211,20 @@ void libc7zip_extract_callback_free(extract_callback *ec) {
   extract_callback_free_(ec);
 }
 
+//-----------------
+
+multivolume_callback *libc7zip_multivolume_callback_new() {
+  return multivolume_callback_new_();
+}
+
+multivolume_callback_def *libc7zip_multivolume_callback_get_def(multivolume_callback *mc) {
+  return multivolume_callback_get_def_(mc);
+}
+
+void libc7zip_multivolume_callback_free(multivolume_callback *mc) {
+  multivolume_callback_free_(mc);
+}
+
 // Gateway functions
 
 int inSeekGo_cgo(int64_t id, int64_t offset, int32_t whence, int64_t *new_position) {
@@ -228,5 +253,21 @@ out_stream *ecGetStreamGo_cgo(int64_t id, int64_t index) {
 
 void ecSetOperationResultGo_cgo(int64_t id, int32_t result) {
   ecSetOperationResultGo(id, result);
+}
+
+char *mcGetFirstVolumeNameGo_cgo(int64_t id) {
+  return mcGetFirstVolumeNameGo(id);
+}
+
+int32_t mcMoveToVolumeGo_cgo(int64_t id, char *volumeName) {
+  return mcMoveToVolumeGo(id, volumeName);
+}
+
+uint64_t mcGetCurrentVolumeSizeGo_cgo(int64_t id) {
+  return mcGetCurrentVolumeSizeGo(id);
+}
+
+in_stream *mcOpenCurrentVolumeStreamGo_cgo(int64_t id) {
+  return mcOpenCurrentVolumeStreamGo(id);
 }
 

@@ -16,6 +16,11 @@ void ecSetTotalGo_cgo(int64_t id, int64_t size);
 void ecSetCompletedGo_cgo(int64_t id, int64_t size);
 out_stream *ecGetStreamGo_cgo(int64_t id, int64_t index);
 void ecSetOperationResultGo_cgo(int64_t id, int32_t result);
+
+char *mcGetFirstVolumeNameGo_cgo(int64_t id);
+int32_t mcMoveToVolumeGo_cgo(int64_t id, char *volumeName);
+uint64_t mcGetCurrentVolumeSizeGo_cgo(int64_t id);
+in_stream *mcOpenCurrentVolumeStreamGo_cgo(int64_t id);
 */
 import "C"
 import (
@@ -252,6 +257,7 @@ func (out *OutStream) Error() error {
 type Archive struct {
 	arch *C.archive
 	in   *InStream
+	mc   *MultiVolumeCallback
 	lib  *Lib
 }
 
@@ -295,6 +301,86 @@ func (lib *Lib) OpenArchiveEx(in *InStream, password string, bySignature bool) (
 	return a, nil
 }
 
+type MultiVolumeCallbackFuncs interface {
+	GetFirstVolumeName() string
+	MoveToVolume(volumeName string) error
+	GetCurrentVolumeSize() uint64
+	OpenCurrentVolumeStream() (*InStream, error)
+}
+
+type MultiVolumeCallback struct {
+	id    int64
+	cb    *C.multivolume_callback
+	funcs MultiVolumeCallbackFuncs
+
+	in     *InStream
+	errors []error
+}
+
+func NewMultiVolumeCallback(funcs MultiVolumeCallbackFuncs) (*MultiVolumeCallback, error) {
+	cb := C.libc7zip_multivolume_callback_new()
+	if cb == nil {
+		return nil, fmt.Errorf("could not create new MultiVolumeCallback")
+	}
+
+	mc := &MultiVolumeCallback{
+		funcs: funcs,
+		cb:    cb,
+	}
+	reserveMultiVolumeCallbackId(mc)
+
+	def := C.libc7zip_multivolume_callback_get_def(cb)
+	def.id = C.int64_t(mc.id)
+	def.get_first_volume_name_cb = (C.get_first_volume_name_cb_t)(unsafe.Pointer(C.mcGetFirstVolumeNameGo_cgo))
+	def.move_to_volume_cb = (C.move_to_volume_cb_t)(unsafe.Pointer(C.mcMoveToVolumeGo_cgo))
+	def.get_current_volume_size_cb = (C.get_current_volume_size_cb_t)(unsafe.Pointer(C.mcGetCurrentVolumeSizeGo_cgo))
+	def.open_current_volume_stream_cb = (C.open_current_volume_stream_cb_t)(unsafe.Pointer(C.mcOpenCurrentVolumeStreamGo_cgo))
+
+	return mc, nil
+}
+
+func (mc *MultiVolumeCallback) Errors() []error {
+	return mc.errors
+}
+
+func (mc *MultiVolumeCallback) Free() {
+	C.libc7zip_multivolume_callback_free(mc.cb)
+}
+
+func (lib *Lib) OpenMultiVolumeArchive(mc *MultiVolumeCallback, password string, bySignature bool) (*Archive, error) {
+	cBySignature := C.int32_t(0)
+	if bySignature {
+		cBySignature = 1
+	}
+
+	// returns a boolean, truthiness indicates success
+	arch := C.libc7zip_archive_multiopen(lib.lib, mc.cb, C.CString(password), cBySignature)
+	if arch == nil {
+		err := coalesceErrors(lib.Error(), ErrUnknownError)
+		return nil, errors.WithStack(err)
+	}
+
+	a := &Archive{
+		arch: arch,
+		in:   nil,
+		mc:   mc,
+		lib:  lib,
+	}
+	return a, nil
+}
+
+func (a *Archive) GetStreamError() error {
+	if a.in != nil {
+		return a.in.Error()
+	} else if a.mc != nil {
+		errors := a.mc.Errors()
+		if len(errors) > 0 {
+			return errors[0]
+		}
+	}
+	return nil
+}
+
 func (a *Archive) Close() {
 	C.libc7zip_archive_close(a.arch)
 }
@@ -316,7 +402,7 @@ func (a *Archive) GetArchiveFormat() string {
 func (a *Archive) GetItemCount() (int64, error) {
 	res := int64(C.libc7zip_archive_get_item_count(a.arch))
 	if res < 0 {
-		err := coalesceErrors(a.in.Error(), a.lib.Error(), ErrUnknownError)
+		err := coalesceErrors(a.GetStreamError(), a.lib.Error(), ErrUnknownError)
 		return 0, errors.WithStack(err)
 	}
 	return res, nil
@@ -453,7 +539,7 @@ func (a *Archive) Extract(i *Item, out *OutStream) error {
 	// returns a boolean, truthiness indicates success
 	success := C.libc7zip_archive_extract_item(a.arch, i.item, out.strm)
 	if success == 0 {
-		err := coalesceErrors(a.in.Error(), out.Error(), a.lib.Error(), ErrUnknownError)
+		err := coalesceErrors(a.GetStreamError(), out.Error(), a.lib.Error(), ErrUnknownError)
 		return errors.WithStack(err)
 	}
 
@@ -514,7 +600,7 @@ func (a *Archive) ExtractSeveral(indices []int64, ec *ExtractCallback) error {
 	success := C.libc7zip_archive_extract_several(a.arch, (*C.int64_t)(unsafe.Pointer(&indices[0])), C.int32_t(len(indices)), ec.cb)
 	ec.archive = nil
 	if success == 0 {
-		err := coalesceErrors(a.in.Error(), a.lib.Error(), ErrUnknownError)
+		err := coalesceErrors(a.GetStreamError(), a.lib.Error(), ErrUnknownError)
 		return errors.WithStack(err)
 	}
 
@@ -715,4 +801,76 @@ func ecSetOperationResultGo(id int64, result int32) {
 		err := coalesceErrors(ec.archive.lib.Error(), ErrUnknownError)
 		ec.errors = append(ec.errors, errors.WithStack(err))
 	}
+}
+
+//export mcGetFirstVolumeNameGo
+func mcGetFirstVolumeNameGo(id int64) *C.char {
+	p, ok := multivolumeCallbacks.Load(id)
+	if !ok {
+		return nil
+	}
+	mc, ok := (p).(*MultiVolumeCallback)
+	if !ok {
+		return nil
+	}
+
+	return C.CString(mc.funcs.GetFirstVolumeName())
+}
+
+//export mcMoveToVolumeGo
+func mcMoveToVolumeGo(id int64, volName *C.char) int32 {
+	p, ok := multivolumeCallbacks.Load(id)
+	if !ok {
+		return 0
+	}
+	mc, ok := (p).(*MultiVolumeCallback)
+	if !ok {
+		return 0
+	}
+
+	err := mc.funcs.MoveToVolume(C.GoString(volName))
+	if err != nil {
+		mc.errors = append(mc.errors, err)
+		return 0
+	} else {
+		return 1
+	}
+}
+
+//export mcGetCurrentVolumeSizeGo
+func mcGetCurrentVolumeSizeGo(id int64) uint64 {
+	p, ok := multivolumeCallbacks.Load(id)
+	if !ok {
+		return 0
+	}
+	mc, ok := (p).(*MultiVolumeCallback)
+	if !ok {
+		return 0
+	}
+
+	return mc.funcs.GetCurrentVolumeSize()
+}
+
+//export mcOpenCurrentVolumeStreamGo
+func mcOpenCurrentVolumeStreamGo(id int64) *C.in_stream {
+	p, ok := multivolumeCallbacks.Load(id)
+	if !ok {
+		return nil
+	}
+	mc, ok := (p).(*MultiVolumeCallback)
+	if !ok {
+		return nil
+	}
+
+	in, err := mc.funcs.OpenCurrentVolumeStream()
+	if err != nil {
+		mc.errors = append(mc.errors, err)
+		return nil
+	}
+
+	if in != nil {
+		mc.in = in
+		return in.strm
+	}
+	return nil
 }
