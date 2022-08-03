@@ -670,15 +670,16 @@ func inReadGo(id int64, data unsafe.Pointer, size int64, processedSize unsafe.Po
 	buf := *(*[]byte)(unsafe.Pointer(&h))
 
 	readBytes, err := in.reader.ReadAt(buf, in.offset)
+	// We always have to set the processedSize even if there's error
+	processedSizePtr := (*int64)(processedSize)
+	*processedSizePtr = int64(readBytes)
+
 	if err != nil {
 		in.err = err
 		return 1
 	}
 
 	in.offset += int64(readBytes)
-
-	processedSizePtr := (*int64)(processedSize)
-	*processedSizePtr = int64(readBytes)
 
 	in.err = nil
 	return 0
@@ -707,13 +708,14 @@ func outWriteGo(id int64, data unsafe.Pointer, size int64, processedSize unsafe.
 	buf := *(*[]byte)(unsafe.Pointer(&h))
 
 	writtenBytes, err := out.writer.Write(buf)
+	// We always have to set the processedSize even if there's error
+	processedSizePtr := (*int64)(processedSize)
+	*processedSizePtr = int64(writtenBytes)
+
 	if err != nil {
 		out.err = err
 		return 1
 	}
-
-	processedSizePtr := (*int64)(processedSize)
-	*processedSizePtr = int64(writtenBytes)
 
 	out.err = nil
 	return 0
