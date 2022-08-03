@@ -51,3 +51,18 @@ func reserveExtractCallbackId(obj *ExtractCallback) {
 func freeExtractCallbackId(id int64) {
 	extractCallbacks.Delete(id)
 }
+
+//==========================
+// MultiVolumeCallback
+//==========================
+
+var multivolumeCallbacks sync.Map
+
+func reserveMultiVolumeCallbackId(obj *MultiVolumeCallback) {
+	obj.id = atomic.AddInt64(&seed, 1)
+	multivolumeCallbacks.Store(obj.id, obj)
+}
+
+func freeMultiVolumeCallbackId(id int64) {
+	multivolumeCallbacks.Delete(id)
+}

@@ -1,12 +1,7 @@
 package main
 
 import (
-	"image"
-	"image/color"
-	"image/png"
-	"io"
 	"log"
-	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -20,6 +15,69 @@ type ecs struct {
 	// muffin
 }
 
+type mcs struct {
+	FirstName  string
+	CurVolName string
+	f          *os.File
+}
+
+//2022/07/28 03:45:46 mcs GetFirstVolumeName()
+//2022/07/28 03:45:46 mcs MoveToVolume(test-magic.7z.001)
+//2022/07/28 03:45:46 mcs MoveToVolume(test-magic.7z.001)
+//2022/07/28 03:45:46 mcs OpenCurrentVolumeStream()
+//2022/07/28 03:45:46 mcs GetCurrentVolumeSize()
+//2022/07/28 03:45:46 mcs GetFirstVolumeName()
+//2022/07/28 03:45:46 mcs MoveToVolume(test-magic.7z.001)
+//2022/07/28 03:45:46 mcs MoveToVolume(test-magic.7z.002)
+//2022/07/28 03:45:46 mcs OpenCurrentVolumeStream()
+//2022/07/28 03:45:46 mcs GetCurrentVolumeSize()
+//2022/07/28 03:45:46 mcs MoveToVolume(test-magic.7z.003)
+//2022/07/28 03:45:46 mcs OpenCurrentVolumeStream()
+//2022/07/28 03:45:46 mcs GetCurrentVolumeSize()
+//2022/07/28 03:45:46 mcs MoveToVolume(test-magic.7z.004)
+
+func (m *mcs) GetFirstVolumeName() string {
+	log.Printf("mcs GetFirstVolumeName()")
+	m.MoveToVolume(m.FirstName)
+	return m.FirstName
+}
+
+func (m *mcs) MoveToVolume(volumeName string) error {
+	log.Printf("mcs MoveToVolume(%s)", volumeName)
+	var err error
+	m.f.Close()
+	m.f, err = os.OpenFile(volumeName, os.O_RDONLY, 0)
+	if err != nil {
+		log.Printf("mcs MoveToVolume(%s), error: %v", volumeName, err)
+		return err
+	}
+	m.CurVolName = volumeName
+	return nil
+}
+
+func (m *mcs) GetCurrentVolumeSize() uint64 {
+	log.Printf("mcs GetCurrentVolumeSize()")
+	info, err := m.f.Stat()
+	if err != nil {
+		return 0
+	}
+	return uint64(info.Size())
+}
+
+func (m *mcs) OpenCurrentVolumeStream() (*sz.InStream, error) {
+	log.Printf("mcs OpenCurrentVolumeStream()")
+	ext := filepath.Ext(m.CurVolName)
+	if ext != "" {
+		ext = ext[1:]
+	}
+
+	f, err := os.OpenFile(m.CurVolName, os.O_RDONLY, 0)
+	if err != nil {
+		return nil, err
+	}
+	return sz.NewInStream(f, ext, int64(m.GetCurrentVolumeSize()))
+}
+
 func main() {
 	lib, err := sz.NewLib()
 	must(err)
@@ -29,7 +87,7 @@ func main() {
 	args := os.Args[1:]
 
 	if len(args) < 1 {
-		log.Printf("Usage: go7z ARCHIVE [PASSWORD]")
+		log.Printf("Usage: go7z_multi FIRST_ARCHIVE [PASSWORD]")
 		os.Exit(1)
 	}
 
@@ -48,24 +106,17 @@ func main() {
 	f, err := os.Open(inPath)
 	must(err)
 
-	stats, err := f.Stat()
-	must(err)
+	f.Close()
 
-	is, err := sz.NewInStream(f, ext, stats.Size())
-	must(err)
-	log.Printf("Created input stream (%s, %d bytes)...", inPath, stats.Size())
+	//is, err := sz.NewInStream(f, ext, stats.Size())
+	//must(err)
+	//log.Printf("Created input stream (%s, %d bytes)...", inPath, stats.Size())
+	//
+	//is.Stats = &sz.ReadStats{}
+	s, err := sz.NewMultiVolumeCallback(&mcs{FirstName: inPath})
+	log.Printf("Created input stream (%s, %d bytes)...", inPath)
 
-	is.Stats = &sz.ReadStats{}
-
-	a, err := lib.OpenArchiveEx(is, password, false)
-	if err != nil {
-		log.Printf("Could not open archive by ext, trying by signature")
-
-		_, err = is.Seek(0, io.SeekStart)
-		must(err)
-
-		a, err = lib.OpenArchiveEx(is, password, true)
-	}
+	a, err := lib.OpenMultiVolumeArchive(s, password, false)
 	must(err)
 
 	log.Printf("Opened archive: format is (%s)", a.GetArchiveFormat())
@@ -82,19 +133,8 @@ func main() {
 	for i := 0; i < int(itemCount); i++ {
 		indices[i] = int64(i)
 	}
-	middle := itemCount / 2
-	if middle > 0 {
-		log.Printf("Doing first half...")
-		err = a.ExtractSeveral(indices[0:middle], ec)
-		must(err)
-	}
 
-	for i := 0; i < 15; i++ {
-		is.Stats.RecordRead(0, 0)
-	}
-
-	log.Printf("Doing second half...")
-	err = a.ExtractSeveral(indices[middle:], ec)
+	err = a.ExtractSeveral(indices, ec)
 	must(err)
 
 	errs := ec.Errors()
@@ -104,59 +144,6 @@ func main() {
 			log.Printf("- %s", err.Error())
 		}
 	}
-
-	width := len(is.Stats.Reads)
-	height := 800
-	log.Printf("Making %dx%d image", width, height)
-
-	rect := image.Rect(0, 0, width, height)
-	img := image.NewRGBA(rect)
-
-	black := &color.RGBA{
-		R: 0,
-		G: 0,
-		B: 0,
-		A: 255,
-	}
-	for x := 0; x < width; x++ {
-		for y := 0; y < height; y++ {
-			img.Set(x, y, black)
-		}
-	}
-
-	scale := 1.0 / float64(stats.Size()) * float64(height)
-	c := &color.RGBA{
-		R: 255,
-		G: 0,
-		B: 0,
-		A: 255,
-	}
-
-	var maxReadSize int64 = 1
-	for _, op := range is.Stats.Reads {
-		if op.Size > maxReadSize {
-			maxReadSize = op.Size
-		}
-	}
-
-	for x, op := range is.Stats.Reads {
-		ymin := int(math.Floor(float64(op.Offset) * scale))
-		ymax := int(math.Ceil(float64(op.Offset+op.Size) * scale))
-
-		cd := *c
-		cd.G = uint8(float64(op.Size) / float64(maxReadSize) * 255)
-
-		for y := ymin; y <= ymax; y++ {
-			img.Set(x, y, &cd)
-		}
-	}
-
-	imageFile, err := os.Create("out/reads.png")
-	must(err)
-	defer imageFile.Close()
-
-	err = png.Encode(imageFile, img)
-	must(err)
 }
 
 func must(err error) {
@@ -191,10 +178,6 @@ func (e *ecs) GetStream(item *sz.Item) (*sz.OutStream, error) {
 	}
 	if symlink, ok := item.GetStringProperty(sz.PidSymLink); ok {
 		log.Printf("==> Symlink dest: %s", symlink)
-	}
-
-	if modTime, ok := item.GetFileTimeProperty(sz.PidMTime); ok {
-		log.Printf("==> Modify Time: %s", modTime.String())
 	}
 
 	isDir, _ := item.GetBoolProperty(sz.PidIsDir)

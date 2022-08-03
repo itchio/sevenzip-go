@@ -71,6 +71,31 @@ typedef archive *(*archive_open_t)(lib *l, in_stream *s, int32_t by_signature);
 DECLARE(archive_open)
 archive *libc7zip_archive_open(lib *l, in_stream *s, int32_t by_signature);
 
+// archive_open_ex
+typedef archive *(*archive_open_ex_t)(lib *l, in_stream *s, const char *password, int32_t by_signature);
+DECLARE(archive_open_ex)
+archive *libc7zip_archive_open_ex(lib *l, in_stream *s, const char *password, int32_t by_signature);
+
+// multivolume_callback_new
+typedef multivolume_callback *(*multivolume_callback_new_t)();
+DECLARE(multivolume_callback_new)
+multivolume_callback *libc7zip_multivolume_callback_new();
+
+// multivolume_callback_get_def
+typedef multivolume_callback_def *(*multivolume_callback_get_def_t)(multivolume_callback *mc);
+DECLARE(multivolume_callback_get_def)
+multivolume_callback_def *libc7zip_multivolume_callback_get_def(multivolume_callback *mc);
+
+// multivolume_callback_free
+typedef void (*multivolume_callback_free_t)(multivolume_callback *mc);
+DECLARE(multivolume_callback_free)
+void libc7zip_multivolume_callback_free(multivolume_callback *mc);
+
+// archive_multiopen
+typedef archive *(*archive_multiopen_t)(lib *l, multivolume_callback *mc, const char *password, int32_t by_signature);
+DECLARE(archive_multiopen)
+archive *libc7zip_archive_multiopen(lib *l, multivolume_callback *mc, const char *password, int32_t by_signature);
+
 // archive_close
 typedef void (*archive_close_t)(archive *a);
 DECLARE(archive_close)
@@ -120,6 +145,11 @@ uint64_t libc7zip_item_get_uint64_property(item *i, int32_t property_index, int3
 typedef int32_t (*item_get_bool_property_t)(item *i, int32_t property_index, int32_t *success);
 DECLARE(item_get_bool_property)
 int32_t libc7zip_item_get_bool_property(item *i, int32_t property_index, int32_t *success);
+
+// item_get_filetime_property
+typedef uint64_t (*item_get_filetime_property_t)(item *i, int32_t property_index, int32_t *success);
+DECLARE(item_get_filetime_property)
+uint64_t libc7zip_item_get_filetime_property(item *i, int32_t property_index, int32_t *success);
 
 // item_free
 typedef void (*item_free_t)(item *i);
