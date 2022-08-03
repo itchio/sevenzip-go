@@ -146,6 +146,11 @@ typedef int32_t (*item_get_bool_property_t)(item *i, int32_t property_index, int
 DECLARE(item_get_bool_property)
 int32_t libc7zip_item_get_bool_property(item *i, int32_t property_index, int32_t *success);
 
+// item_get_filetime_property
+typedef uint64_t (*item_get_filetime_property_t)(item *i, int32_t property_index, int32_t *success);
+DECLARE(item_get_filetime_property)
+uint64_t libc7zip_item_get_filetime_property(item *i, int32_t property_index, int32_t *success);
+
 // item_free
 typedef void (*item_free_t)(item *i);
 DECLARE(item_free)

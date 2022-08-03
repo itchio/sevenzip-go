@@ -71,6 +71,7 @@ int libc7zip_initialize(char *lib_path) {
   LOADSYM(string_free)
   LOADSYM(item_get_uint64_property)
   LOADSYM(item_get_bool_property)
+  LOADSYM(item_get_filetime_property)
   LOADSYM(item_free)
 
   LOADSYM(archive_extract_item)
@@ -183,6 +184,10 @@ uint64_t libc7zip_item_get_uint64_property(item *i, int32_t property_index, int3
 
 int32_t libc7zip_item_get_bool_property(item *i, int32_t property_index, int32_t *success) {
   return item_get_bool_property_(i, property_index, success);
+}
+
+uint64_t libc7zip_item_get_filetime_property(item *i, int32_t property_index, int32_t *success) {
+  return item_get_filetime_property_(i, property_index, success);
 }
 
 void libc7zip_item_free(item *i) {

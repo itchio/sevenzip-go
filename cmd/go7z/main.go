@@ -83,10 +83,11 @@ func main() {
 		indices[i] = int64(i)
 	}
 	middle := itemCount / 2
-
-	log.Printf("Doing first half...")
-	err = a.ExtractSeveral(indices[0:middle], ec)
-	must(err)
+	if middle > 0 {
+		log.Printf("Doing first half...")
+		err = a.ExtractSeveral(indices[0:middle], ec)
+		must(err)
+	}
 
 	for i := 0; i < 15; i++ {
 		is.Stats.RecordRead(0, 0)
@@ -190,6 +191,10 @@ func (e *ecs) GetStream(item *sz.Item) (*sz.OutStream, error) {
 	}
 	if symlink, ok := item.GetStringProperty(sz.PidSymLink); ok {
 		log.Printf("==> Symlink dest: %s", symlink)
+	}
+
+	if modTime, ok := item.GetFileTimeProperty(sz.PidMTime); ok {
+		log.Printf("==> Modify Time: %s", modTime.String())
 	}
 
 	isDir, _ := item.GetBoolProperty(sz.PidIsDir)

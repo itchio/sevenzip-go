@@ -30,6 +30,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"time"
 	"unsafe"
 
 	"github.com/pkg/errors"
@@ -529,6 +530,13 @@ func (i *Item) GetBoolProperty(id PropertyIndex) (bool, bool) {
 	var success = C.int32_t(0)
 	val := C.libc7zip_item_get_bool_property(i.item, C.int32_t(id), &success) != 0
 	return val, success == 1
+}
+
+func (i *Item) GetFileTimeProperty(id PropertyIndex) (time.Time, bool) {
+	var success = C.int32_t(0)
+	val := uint64(C.libc7zip_item_get_filetime_property(i.item, C.int32_t(id), &success))
+	ret := time.Unix(int64(val)/10000000-int64(11644473600), int64(val)%10000000)
+	return ret, success == 1
 }
 
 func (i *Item) Free() {

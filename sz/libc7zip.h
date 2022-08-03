@@ -41,10 +41,10 @@ typedef out_stream *(*get_stream_cb_t)(int64_t id, int64_t index);
 typedef void (*set_operation_result_cb_t)(int64_t id, int32_t operation_result);
 
 // MultiVolumeCallback functions
-typedef char *(*get_first_volume_name_cb_t)(void);
-typedef int (*move_to_volume_cb_t)(char *volumeName);
-typedef uint64_t (*get_current_volume_size_cb_t)(void);
-typedef in_stream *(*open_current_volume_stream_cb_t)(void);
+typedef char *(*get_first_volume_name_cb_t)(int64_t id);
+typedef int (*move_to_volume_cb_t)(int64_t id, char *volumeName);
+typedef uint64_t (*get_current_volume_size_cb_t)(int64_t id);
+typedef in_stream *(*open_current_volume_stream_cb_t)(int64_t id);
 
 typedef struct in_stream_def {
   int64_t id;
@@ -85,7 +85,7 @@ typedef struct multivolume_callback_def {
 } multivolume_callback_def;
 
 MYEXPORT multivolume_callback *multivolume_callback_new();
-MYEXPORT multivolume_callback_def *multivolume_callback_get_def(multivolume_callback *ec);
+MYEXPORT multivolume_callback_def *multivolume_callback_get_def(multivolume_callback *mc);
 MYEXPORT void multivolume_callback_free(multivolume_callback *mc);
 
 MYEXPORT archive *archive_multiopen(lib *l, multivolume_callback *mc, const char *password, int32_t by_signature);
@@ -149,6 +149,7 @@ MYEXPORT char *item_get_string_property(item *i, int32_t property_index, int32_t
 MYEXPORT void string_free(char *s);
 MYEXPORT uint64_t item_get_uint64_property(item *i, int32_t property_index, int32_t *success);
 MYEXPORT int32_t item_get_bool_property(item *i, int32_t property_index, int32_t *success);
+MYEXPORT uint64_t item_get_filetime_property(item *i, int32_t property_index, int32_t *success);
 MYEXPORT void item_free(item *i);
 MYEXPORT int archive_extract_item(archive *a, item *i, out_stream *os);
 
