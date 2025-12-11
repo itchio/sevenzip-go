@@ -1,6 +1,6 @@
 # sevenzip-go
 
-[![Build Status](https://travis-ci.org/itchio/sevenzip-go.svg?branch=master)](https://travis-ci.org/itchio/sevenzip-go)
+[![Build](https://github.com/itchio/sevenzip-go/actions/workflows/build.yml/badge.svg)](https://github.com/itchio/sevenzip-go/actions/workflows/build.yml)
 [![GoDoc](https://godoc.org/github.com/itchio/sevenzip-go?status.svg)](https://godoc.org/github.com/itchio/sevenzip-go)
 [![MIT licensed](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/itchio/sevenzip-go/blob/master/LICENSE)
 [![No Maintenance Intended](http://unmaintained.tech/badge.svg)](http://unmaintained.tech/)
