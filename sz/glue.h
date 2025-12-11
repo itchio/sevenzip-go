@@ -57,7 +57,7 @@ DECLARE(out_stream_new)
 out_stream *libc7zip_out_stream_new();
 
 // out_stream_get_def
-typedef out_stream_def *(*out_stream_get_def_t)();
+typedef out_stream_def *(*out_stream_get_def_t)(out_stream *os);
 DECLARE(out_stream_get_def)
 out_stream_def *libc7zip_out_stream_get_def(out_stream *s);
 
