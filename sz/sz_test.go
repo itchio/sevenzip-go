@@ -99,6 +99,8 @@ func TestOpenArchive_SimpleZip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenArchive failed: %v", err)
 	}
+	defer archive.Free()
+	defer archive.Close()
 
 	format := archive.GetArchiveFormat()
 	if format != "zip" {
@@ -145,6 +147,8 @@ func TestOpenArchive_BySignature(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenArchive by signature failed: %v", err)
 	}
+	defer archive.Free()
+	defer archive.Close()
 
 	format := archive.GetArchiveFormat()
 	if format != "zip" {
@@ -207,6 +211,8 @@ func TestGetItem_Properties(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenArchive failed: %v", err)
 	}
+	defer archive.Free()
+	defer archive.Close()
 
 	item := archive.GetItem(0)
 	if item == nil {
@@ -271,6 +277,8 @@ func TestExtract_SingleItem(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenArchive failed: %v", err)
 	}
+	defer archive.Free()
+	defer archive.Close()
 
 	item := archive.GetItem(0)
 	if item == nil {
@@ -326,6 +334,8 @@ func TestExtractSeveral_MultipleFiles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenArchive failed: %v", err)
 	}
+	defer archive.Free()
+	defer archive.Close()
 
 	count, err := archive.GetItemCount()
 	if err != nil {
@@ -405,6 +415,8 @@ func TestExtractSeveral_WithDirectories(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenArchive failed: %v", err)
 	}
+	defer archive.Free()
+	defer archive.Close()
 
 	count, err := archive.GetItemCount()
 	if err != nil {
@@ -475,6 +487,8 @@ func TestExtractCallback_ProgressReported(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenArchive failed: %v", err)
 	}
+	defer archive.Free()
+	defer archive.Close()
 
 	callback := newTestExtractCallback()
 	ec, err := NewExtractCallback(callback)
@@ -554,6 +568,8 @@ func TestInStream_WithStats(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenArchive failed: %v", err)
 	}
+	defer archive.Free()
+	defer archive.Close()
 
 	callback := newTestExtractCallback()
 	ec, err := NewExtractCallback(callback)
@@ -611,6 +627,8 @@ func TestInStream_ChunkSize(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenArchive failed: %v", err)
 	}
+	defer archive.Free()
+	defer archive.Close()
 
 	callback := newTestExtractCallback()
 	ec, err := NewExtractCallback(callback)
