@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -225,7 +226,8 @@ func TestGetItem_Properties(t *testing.T) {
 	if !ok {
 		t.Error("GetStringProperty(PidPath) failed")
 	}
-	if path != "subdir/hello.txt" {
+	// Normalize path separators for cross-platform comparison
+	if filepath.ToSlash(path) != "subdir/hello.txt" {
 		t.Errorf("PidPath = %q, want %q", path, "subdir/hello.txt")
 	}
 
