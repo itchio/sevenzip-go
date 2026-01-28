@@ -13,6 +13,15 @@ import (
 	"testing"
 )
 
+const (
+	// URL pattern for downloading native libraries from broth.itch.zone
+	// %s is replaced with the platform (e.g., "linux-amd64", "darwin-arm64-head")
+	brothLibraryURL = "https://broth.itch.zone/libc7zip/%s/LATEST/archive.zip"
+
+	// useHeadBuild controls whether to use head builds (-head suffix) or stable builds
+	useHeadBuild = true
+)
+
 var (
 	librariesOnce   sync.Once
 	librariesError  error
@@ -74,7 +83,10 @@ func downloadNativeLibraries() error {
 	}
 
 	platform := fmt.Sprintf("%s-%s", runtime.GOOS, arch)
-	url := fmt.Sprintf("https://broth.itch.zone/libc7zip/%s/LATEST/archive.zip", platform)
+	if useHeadBuild {
+		platform += "-head"
+	}
+	url := fmt.Sprintf(brothLibraryURL, platform)
 
 	fmt.Printf("Downloading native libraries from %s...\n", url)
 
