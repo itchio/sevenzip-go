@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"image"
 	"image/color"
 	"image/png"
@@ -159,6 +160,25 @@ func must(err error) {
 	}
 }
 
+// safePath validates that the joined path stays within the base directory,
+// preventing path traversal attacks (ZIP slip).
+func safePath(baseDir, filePath string) (string, error) {
+	absBase, err := filepath.Abs(baseDir)
+	if err != nil {
+		return "", err
+	}
+	joined := filepath.Join(absBase, filePath)
+	absJoined, err := filepath.Abs(joined)
+	if err != nil {
+		return "", err
+	}
+	// Ensure the path is within the base directory
+	if !strings.HasPrefix(absJoined, absBase+string(filepath.Separator)) && absJoined != absBase {
+		return "", fmt.Errorf("path traversal detected: %s", filePath)
+	}
+	return absJoined, nil
+}
+
 func (e *ecs) GetStream(item *sz.Item) (*sz.OutStream, error) {
 	propPath, ok := item.GetStringProperty(sz.PidPath)
 	if !ok {
@@ -172,7 +192,10 @@ func (e *ecs) GetStream(item *sz.Item) (*sz.OutStream, error) {
 		outPath = strings.Replace(outPath, string([]byte{i}), "_", -1)
 	}
 
-	absoluteOutPath := filepath.Join("out", outPath)
+	absoluteOutPath, err := safePath("out", outPath)
+	if err != nil {
+		return nil, err
+	}
 
 	log.Printf("  ")
 	log.Printf("==> Extracting %d: %s", item.GetArchiveIndex(), outPath)
@@ -200,7 +223,7 @@ func (e *ecs) GetStream(item *sz.Item) (*sz.OutStream, error) {
 		return nil, nil
 	}
 
-	err := os.MkdirAll(filepath.Dir(absoluteOutPath), 0755)
+	err = os.MkdirAll(filepath.Dir(absoluteOutPath), 0755)
 	if err != nil {
 		return nil, err
 	}
