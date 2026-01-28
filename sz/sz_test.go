@@ -295,6 +295,7 @@ func TestExtract_SingleItem(t *testing.T) {
 		t.Fatalf("NewOutStream failed: %v", err)
 	}
 	defer outStream.Free()
+	defer outStream.Close()
 
 	err = archive.Extract(item, outStream)
 	if err != nil {
