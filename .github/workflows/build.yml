@@ -9,9 +9,21 @@ on:
 jobs:
   build:
     strategy:
+      fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+            name: linux-amd64
+          - os: ubuntu-24.04-arm
+            name: linux-arm64
+          - os: macos-latest
+            name: darwin-arm64
+          - os: macos-15-intel
+            name: darwin-amd64
+          - os: windows-latest
+            name: windows-amd64
     runs-on: ${{ matrix.os }}
+    name: ${{ matrix.name }}
 
     steps:
       - uses: actions/checkout@v4
