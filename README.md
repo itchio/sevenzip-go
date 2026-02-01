@@ -56,6 +56,37 @@ errors).
 
 The `./cmd/go7z` package
 
+### Testing
+
+The test suite automatically downloads native libraries from <https://broth.itch.zone/libc7zip>.
+You can override the channel and version using environment variables:
+
+| Variable | Description |
+|----------|-------------|
+| `LIBC7ZIP_CHANNEL` | Override the platform/channel (e.g., `darwin-arm64-head`, `linux-amd64`) |
+| `LIBC7ZIP_VERSION` | Override the version (e.g., a specific commit hash) |
+
+Available channels:
+
+**Stable:**
+`darwin-amd64`, `darwin-arm64`, `linux-386`, `linux-amd64`, `linux-arm64`, `windows-386`, `windows-amd64`, `windows-arm64`
+
+**Head (development):**
+`darwin-amd64-head`, `darwin-arm64-head`, `linux-amd64-head`, `linux-arm64-head`, `windows-386-head`, `windows-amd64-head`, `windows-arm64-head`
+
+Example usage:
+
+```bash
+# Use a specific channel
+LIBC7ZIP_CHANNEL=darwin-arm64-head go test -v ./sz/
+
+# Use a specific version
+LIBC7ZIP_VERSION=6d8a0456c76c573ff5ba3bf5bda1c86bd34f4394 go test -v ./sz/
+
+# Use both
+LIBC7ZIP_CHANNEL=linux-amd64 LIBC7ZIP_VERSION=1.9.0 go test -v ./sz/
+```
+
 ### Links
 
   * <https://github.com/itchio/libc7zip> - a C wrapper for lib7zip, based on structs and function pointers

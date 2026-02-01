@@ -9,14 +9,17 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"testing"
 )
 
 const (
-	// URL pattern for downloading native libraries from broth.itch.zone
-	// %s is replaced with the platform (e.g., "linux-amd64", "darwin-arm64-head")
-	brothLibraryURL = "https://broth.itch.zone/libc7zip/%s/LATEST/archive.zip"
+	// URL pattern for fetching the latest version
+	brothVersionURL = "https://broth.itch.zone/libc7zip/%s/LATEST"
+	// URL pattern for downloading native libraries
+	// First %s is platform, second %s is version
+	brothLibraryURL = "https://broth.itch.zone/libc7zip/%s/%s/archive.zip"
 
 	// useHeadBuild controls whether to use head builds (-head suffix) or stable builds
 	useHeadBuild = true
@@ -86,8 +89,40 @@ func downloadNativeLibraries() error {
 	if useHeadBuild {
 		platform += "-head"
 	}
-	url := fmt.Sprintf(brothLibraryURL, platform)
 
+	// Allow channel override via environment variable
+	if envChannel := os.Getenv("LIBC7ZIP_CHANNEL"); envChannel != "" {
+		platform = envChannel
+		fmt.Printf("Using libc7zip channel (from env): %s\n", platform)
+	}
+
+	// Determine version: use env override or fetch from LATEST endpoint
+	var version string
+	if envVersion := os.Getenv("LIBC7ZIP_VERSION"); envVersion != "" {
+		version = envVersion
+		fmt.Printf("Using libc7zip version (from env): %s\n", version)
+	} else {
+		// Fetch the version from LATEST endpoint
+		versionURL := fmt.Sprintf(brothVersionURL, platform)
+		versionResp, err := http.Get(versionURL)
+		if err != nil {
+			return fmt.Errorf("failed to fetch version: %w", err)
+		}
+		defer versionResp.Body.Close()
+
+		if versionResp.StatusCode != http.StatusOK {
+			return fmt.Errorf("failed to fetch version: HTTP %d", versionResp.StatusCode)
+		}
+
+		versionData, err := io.ReadAll(versionResp.Body)
+		if err != nil {
+			return fmt.Errorf("failed to read version: %w", err)
+		}
+		version = strings.TrimSpace(string(versionData))
+		fmt.Printf("Using libc7zip version: %s\n", version)
+	}
+
+	url := fmt.Sprintf(brothLibraryURL, platform, version)
 	fmt.Printf("Downloading native libraries from %s...\n", url)
 
 	resp, err := http.Get(url)
