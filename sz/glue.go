@@ -376,6 +376,10 @@ var (
 	PidSymLink PropertyIndex = C.kpidSymLink
 	// POSIX attributes
 	PidPosixAttrib PropertyIndex = C.kpidPosixAttrib
+	// Alternate stream (e.g. HFS+/APFS extended attribute), not a real file.
+	// Requires a libc7zip that exposes this index; older libraries report the
+	// property as unsupported.
+	PidIsAltStream PropertyIndex = C.kpidIsAltStream
 )
 
 type ErrorCode int32
