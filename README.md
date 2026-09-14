@@ -32,7 +32,8 @@ most of butler's functionality does not require 7-zip, and:
   * we want folks to be able to build butler easily, without having to build C/C++ projects manually
   * we want folks to be able to run their custom butler builds easily, without having to worry about missing
   dynamic libraries
-  * we want to use `7z.dll` from the official 7-zip builds (it is a notorious pain to build, as it requires MSVC 2010)
+  * on Windows, we want to use `7z.dll` from the official signed 7-zip installers rather than building it ourselves
+  (on Linux and macOS, `7z.so` is built from the official 7-zip source)
 
 While the whole setup sounds crazy (especially considering the whole Go->cgo->C->C++->COM/C++ pipeline),
 it fits all those goals.
