@@ -2,6 +2,7 @@ package sz
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -653,4 +654,51 @@ func TestInStream_ChunkSize(t *testing.T) {
 	}
 
 	t.Logf("Recorded %d read operations with ChunkSize=%d", len(stream.Stats.Reads), stream.ChunkSize)
+}
+
+func TestExtractSeveral_EncryptedEntries(t *testing.T) {
+	skipIfNoLibraries(t)
+
+	data, err := os.ReadFile("testdata/encrypted-entries.7z")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	lib, err := NewLib()
+	if err != nil {
+		t.Fatalf("NewLib failed: %v", err)
+	}
+	defer lib.Free()
+
+	stream, err := NewInStream(newBytesReaderAtCloser(data), "7z", int64(len(data)))
+	if err != nil {
+		t.Fatalf("NewInStream failed: %v", err)
+	}
+	defer stream.Free()
+
+	archive, err := lib.OpenArchive(stream, false)
+	if err != nil {
+		t.Fatalf("OpenArchive failed: %v", err)
+	}
+	defer archive.Free()
+	defer archive.Close()
+
+	ec, err := NewExtractCallback(newTestExtractCallback())
+	if err != nil {
+		t.Fatalf("NewExtractCallback failed: %v", err)
+	}
+	defer ec.Free()
+
+	if err := archive.ExtractSeveral([]int64{0}, ec); err != nil {
+		t.Fatalf("ExtractSeveral failed: %v", err)
+	}
+	item := archive.GetItem(0)
+	defer item.Free()
+	if encrypted, _ := item.GetBoolProperty(PidEncrypted); !encrypted {
+		t.Fatal("item 0 not reported as encrypted")
+	}
+	errs := ec.Errors()
+	if len(errs) != 1 || errors.Is(errs[0], ErrUnknownError) {
+		t.Fatalf("entry errors = %v, want one typed error", errs)
+	}
 }

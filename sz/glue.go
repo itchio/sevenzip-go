@@ -400,6 +400,67 @@ var (
 	ErrNotSupportedArchive               = errors.New("Archive type not supported by 7-zip")
 )
 
+// OperationResult is 7-zip's per-entry extraction outcome
+// (NArchive::NExtract::NOperationResult), reported through the extract
+// callback once an entry has been processed.
+type OperationResult int32
+
+const (
+	OperationOK OperationResult = iota
+	OperationUnsupportedMethod
+	OperationDataError
+	OperationCRCError
+	OperationUnavailable
+	OperationUnexpectedEnd
+	OperationDataAfterEnd
+	OperationIsNotArc
+	OperationHeadersError
+	OperationWrongPassword
+)
+
+var (
+	ErrUnsupportedMethod = errors.New("7-zip: unsupported compression method")
+	ErrDataError         = errors.New("7-zip: data error")
+	ErrCRCError          = errors.New("7-zip: CRC error")
+	ErrUnavailable       = errors.New("7-zip: data unavailable")
+	ErrUnexpectedEnd     = errors.New("7-zip: unexpected end of data")
+	ErrDataAfterEnd      = errors.New("7-zip: data after end of archive")
+	ErrIsNotArc          = errors.New("7-zip: not an archive")
+	ErrHeadersError      = errors.New("7-zip: headers error")
+)
+
+// Err is the error an entry's result stands for. A wrong-password result
+// reads as ErrNeedPassword, the same as an archive that cannot be opened
+// without one. libc7zip declines the password request during extraction,
+// so 7-zip currently reports an encrypted entry as an unsupported method;
+// check PidEncrypted before extracting to tell the two apart.
+func (r OperationResult) Err() error {
+	switch r {
+	case OperationOK:
+		return nil
+	case OperationUnsupportedMethod:
+		return ErrUnsupportedMethod
+	case OperationDataError:
+		return ErrDataError
+	case OperationCRCError:
+		return ErrCRCError
+	case OperationUnavailable:
+		return ErrUnavailable
+	case OperationUnexpectedEnd:
+		return ErrUnexpectedEnd
+	case OperationDataAfterEnd:
+		return ErrDataAfterEnd
+	case OperationIsNotArc:
+		return ErrIsNotArc
+	case OperationHeadersError:
+		return ErrHeadersError
+	case OperationWrongPassword:
+		return ErrNeedPassword
+	default:
+		return fmt.Errorf("7-zip: operation result %d", int32(r))
+	}
+}
+
 func (i *Item) GetArchiveIndex() int64 {
 	return int64(C.libc7zip_item_get_archive_index(i.item))
 }
@@ -691,11 +752,7 @@ func ecSetOperationResultGo(id int64, result int32) {
 		ec.out = nil
 	}
 
-	// TODO: so, if result isn't NArchive::NExtract::NOperationResult::kOK
-	// then something went wrong with the extraction, should we call
-	// GetLastError() and append it somewhere ?
-	if result != 0 {
-		err := coalesceErrors(ec.archive.lib.Error(), ErrUnknownError)
+	if err := OperationResult(result).Err(); err != nil {
 		ec.errors = append(ec.errors, err)
 	}
 }
